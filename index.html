@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MAKRO MAP · แผนที่สาขาแม็คโครทั่วประเทศ</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f6fa;--surface:#ffffff;--surface-2:#f7f9fc;--line:#e6eaf1;--line-2:#eef1f6;
+  --txt:#1b2230;--txt-2:#5a6478;--txt-dim:#9aa3b5;--accent:#e2231a;--accent-soft:#fff0ef;
+  --blue:#2563eb;--gold:#d99a00;--ok:#0f9d58;
+  --shadow:0 1px 3px rgba(20,30,55,.06),0 8px 24px rgba(20,30,55,.06);
+  --shadow-lg:0 12px 40px rgba(20,30,55,.14);--r:16px;--r-sm:11px;--r-xs:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{font-family:'IBM Plex Sans Thai','Noto Sans KR',sans-serif;background:var(--bg);color:var(--txt);overflow:hidden}
+.mono{font-family:'Space Mono',monospace}
+button{font-family:inherit}
+#app{display:flex;height:100vh;width:100vw;position:relative}
+
+#sidebar{width:368px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;z-index:1000;transition:transform .32s cubic-bezier(.22,1,.36,1)}
+.brand{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+.brand .mk{width:42px;height:42px;border-radius:11px;background:var(--accent);display:flex;align-items:center;
+  justify-content:center;flex-shrink:0;box-shadow:0 6px 16px rgba(226,35,26,.28)}
+.brand .mk svg{width:24px;height:24px}
+.brand h1{font-size:18px;font-weight:700;letter-spacing:-.3px;line-height:1.1}
+.brand p{font-size:11px;color:var(--txt-dim);margin-top:2px}
+
+/* language switch */
+.lang-sw{margin-left:auto;display:flex;background:var(--surface-2);border:1px solid var(--line);
+  border-radius:999px;padding:3px;gap:2px}
+.lang-sw button{border:none;background:none;font-size:11.5px;font-weight:600;padding:5px 10px;
+  border-radius:999px;color:var(--txt-dim);cursor:pointer;transition:.16s}
+.lang-sw button.active{background:var(--accent);color:#fff}
+
+.nav{display:flex;padding:8px 12px 0;gap:4px;border-bottom:1px solid var(--line);align-items:center}
+.nav button{flex:1;border:none;background:none;padding:11px 0 13px;font-size:12.5px;font-weight:600;
+  color:var(--txt-dim);cursor:pointer;position:relative;transition:.18s;border-radius:8px 8px 0 0;white-space:nowrap}
+.nav button:hover{color:var(--txt-2)}
+.nav button.active{color:var(--accent)}
+.nav button.active::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:3px;
+  background:var(--accent);border-radius:3px 3px 0 0}
+
+.pane{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.pane.hide{display:none}
+
+.search-wrap{padding:14px 18px 8px;position:relative}
+.search-wrap input{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:12px 14px 12px 38px;color:var(--txt);font-family:inherit;font-size:14px;outline:none;transition:.2s}
+.search-wrap input:focus{border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px var(--accent-soft)}
+.search-wrap .si{position:absolute;left:30px;top:50%;transform:translateY(-50%);color:var(--txt-dim);pointer-events:none}
+
+.regions{padding:4px 18px 8px;display:flex;flex-wrap:wrap;gap:7px}
+.chip{font-size:12px;padding:7px 12px;border-radius:999px;cursor:pointer;background:var(--surface-2);
+  border:1px solid var(--line);color:var(--txt-2);transition:.16s;user-select:none;display:flex;align-items:center;gap:6px;font-weight:500}
+.chip:hover{border-color:#cfd6e2}
+.chip.active{color:#fff;border-color:transparent;font-weight:600}
+.chip .cdot{width:8px;height:8px;border-radius:50%}
+
+.list{flex:1;overflow-y:auto;padding:6px 14px 18px}
+.list::-webkit-scrollbar{width:8px}.list::-webkit-scrollbar-thumb{background:#dde3ec;border-radius:10px}
+.branch{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px 13px;
+  margin-bottom:8px;cursor:pointer;transition:.16s;position:relative;overflow:hidden}
+.branch::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--bcol,var(--accent))}
+.branch:hover{border-color:#cfd6e2;box-shadow:var(--shadow);transform:translateX(2px)}
+.branch.routing-pick{border-color:var(--gold);box-shadow:0 0 0 2px rgba(217,154,0,.25)}
+.branch .bn{font-size:14px;font-weight:600;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.branch .bn .code{font-size:10.5px;color:var(--txt-dim);background:var(--surface-2);padding:2px 7px;border-radius:6px;flex-shrink:0}
+.branch .bp{font-size:12px;color:var(--txt-2);margin-top:4px;display:flex;align-items:center;gap:5px}
+.branch .reg-tag{font-size:10px;padding:2px 9px;border-radius:999px;margin-top:8px;display:inline-block;font-weight:600}
+.branch .seq{position:absolute;right:10px;top:10px;width:22px;height:22px;border-radius:50%;background:var(--gold);
+  color:#fff;font-size:11px;font-weight:700;display:none;align-items:center;justify-content:center}
+.branch.in-route .seq{display:flex}
+
+#map{flex:1;background:#eaeef4;z-index:1}
+.leaflet-container{background:#eaeef4;font-family:inherit}
+.leaflet-popup-content-wrapper{background:#fff;color:var(--txt);border-radius:var(--r);box-shadow:var(--shadow-lg);padding:2px}
+.leaflet-popup-content{margin:14px 16px;font-family:inherit}
+.pop-name{font-size:16px;font-weight:700;margin-bottom:3px}
+.pop-meta{font-size:12px;color:var(--txt-2);margin-bottom:8px}
+.pop-coord{font-size:11.5px;color:var(--gold);margin-bottom:11px;font-weight:500}
+.pop-addr{font-size:11.5px;color:var(--txt-2);margin-bottom:7px;line-height:1.5}
+.pop-btns{display:flex;gap:7px;flex-wrap:wrap}
+.pop-btns button{flex:1;min-width:78px;border:1px solid var(--line);background:var(--surface-2);color:var(--txt);
+  font-size:11.5px;padding:8px;border-radius:8px;cursor:pointer;transition:.16s;font-weight:500}
+.pop-btns button:hover{border-color:var(--accent);color:var(--accent);background:#fff}
+.pop-btns button.gd{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ===== MARKER WITH LABEL ===== */
+.mk-wrap{transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;cursor:pointer}
+.mk-label{background:#fff;border:1px solid var(--line);border-radius:7px;padding:2px 7px;font-size:11px;
+  font-weight:600;color:var(--txt);white-space:nowrap;box-shadow:0 2px 6px rgba(20,30,55,.18);
+  margin-bottom:2px;line-height:1.3;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.mk-label .lb-code{color:var(--txt-dim);font-size:9px;font-weight:500;margin-right:3px}
+.mk-pin svg{filter:drop-shadow(0 3px 5px rgba(20,30,55,.3))}
+.mk-seq{position:absolute;top:-7px;right:-7px;width:18px;height:18px;border-radius:50%;background:var(--gold);
+  color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;
+  border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+
+/* ===== Route panel (simple 2-point) ===== */
+#routebar{position:absolute;left:388px;top:18px;z-index:900;background:#fff;border:1px solid var(--line);
+  border-radius:var(--r);padding:16px;width:330px;box-shadow:var(--shadow-lg);transition:.3s}
+#routebar.hidden{opacity:0;transform:translateY(-12px);pointer-events:none}
+.rb-title{font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:var(--accent);font-weight:700;
+  margin-bottom:13px;display:flex;align-items:center;gap:7px}
+.rb-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;background:var(--surface-2);padding:9px 11px;border-radius:var(--r-xs)}
+.rb-row .dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+.rb-row .dot.a{background:var(--gold)}.rb-row .dot.b{background:var(--accent)}
+.rb-row .val{font-size:13px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rb-row .val.empty{color:var(--txt-dim);font-weight:400}
+.rb-dist{margin-top:12px;padding:13px;background:var(--accent-soft);border-radius:var(--r-sm);display:flex;align-items:baseline;gap:8px}
+.rb-dist .km{font-size:30px;font-weight:700;color:var(--accent)}
+.rb-dist .u{font-size:14px;color:var(--txt-2)}
+.rb-dist .straight{font-size:11px;color:var(--txt-dim);margin-left:auto}
+.rb-actions{display:flex;gap:7px;margin-top:12px}
+.rb-actions button{flex:1;font-size:12.5px;padding:10px;border-radius:var(--r-xs);cursor:pointer;
+  border:1px solid var(--line);background:var(--surface-2);color:var(--txt);transition:.16s;font-weight:500}
+.rb-actions button.gmap{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+
+.route-hint{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:900;background:var(--gold);
+  color:#fff;font-weight:600;font-size:12.5px;padding:10px 20px;border-radius:999px;box-shadow:var(--shadow-lg);transition:.3s}
+.route-hint.hidden{opacity:0;transform:translateX(-50%) translateY(10px);pointer-events:none}
+
+.sync{margin-left:6px;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);flex-shrink:0}
+.sync .led{width:8px;height:8px;border-radius:50%;background:#cbd2de}
+.sync.on .led{background:var(--ok);box-shadow:0 0 8px var(--ok);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+
+/* ===== Summary ===== */
+.summary{flex:1;overflow-y:auto;padding:16px 18px 24px}
+.summary::-webkit-scrollbar{width:8px}.summary::-webkit-scrollbar-thumb{background:#dde3ec;border-radius:10px}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:14px;box-shadow:var(--shadow)}
+.kpi .v{font-size:26px;font-weight:700;line-height:1}
+.kpi .l{font-size:11.5px;color:var(--txt-2);margin-top:5px}
+.kpi.red .v{color:var(--accent)}.kpi.blue .v{color:var(--blue)}.kpi.gold .v{color:var(--gold)}.kpi.green .v{color:var(--ok)}
+.sum-sec{margin-top:18px}
+.sum-sec h3{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--txt-dim);font-weight:700;margin-bottom:10px}
+.bar-row{margin-bottom:11px;cursor:pointer}
+.bar-row:hover .bar-label{color:var(--accent)}
+.bar-label{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px;font-weight:500;transition:.15s}
+.bar-label .n{color:var(--txt-2);font-weight:600}
+.bar-track{height:10px;background:var(--surface-2);border-radius:6px;overflow:hidden}
+.bar-fill{height:100%;border-radius:6px;transition:width .6s cubic-bezier(.22,1,.36,1)}
+.print-btn{width:100%;margin-top:18px;padding:13px;border-radius:var(--r-sm);border:none;background:var(--txt);
+  color:#fff;font-size:13.5px;font-weight:600;cursor:pointer;transition:.16s;display:flex;align-items:center;justify-content:center;gap:8px}
+.print-btn:hover{background:#000}
+
+/* ===== Route-plan pane (multi stop) ===== */
+.rp{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.rp-head{padding:14px 18px 6px}
+.rp-head p{font-size:12px;color:var(--txt-2);line-height:1.5}
+.rp-total{margin:10px 18px 4px;background:var(--accent-soft);border-radius:var(--r-sm);padding:13px 15px;
+  display:flex;align-items:baseline;gap:8px}
+.rp-total .v{font-size:28px;font-weight:700;color:var(--accent)}
+.rp-total .u{font-size:13px;color:var(--txt-2)}
+.rp-total .legs{font-size:11px;color:var(--txt-dim);margin-left:auto}
+.rp-list{flex:1;overflow-y:auto;padding:10px 14px 14px}
+.rp-list::-webkit-scrollbar{width:8px}.rp-list::-webkit-scrollbar-thumb{background:#dde3ec;border-radius:10px}
+.rp-stop{display:flex;align-items:center;gap:11px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r-sm);padding:11px 12px;margin-bottom:6px;position:relative}
+.rp-stop .num{width:26px;height:26px;border-radius:50%;background:var(--gold);color:#fff;font-size:12px;
+  font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.rp-stop .info{flex:1;min-width:0}
+.rp-stop .nm{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rp-stop .pv{font-size:11px;color:var(--txt-2)}
+.rp-stop .rm{border:none;background:none;color:var(--txt-dim);cursor:pointer;font-size:17px;padding:2px 4px;line-height:1}
+.rp-stop .rm:hover{color:var(--accent)}
+.rp-leg{font-size:11px;color:var(--gold);font-weight:600;padding:3px 0 3px 38px;display:flex;align-items:center;gap:6px}
+.rp-empty{text-align:center;color:var(--txt-dim);font-size:13px;padding:40px 20px;line-height:1.6}
+.rp-actions{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px}
+.rp-actions button{flex:1;padding:11px;border-radius:var(--r-xs);font-size:12.5px;font-weight:600;cursor:pointer;
+  border:1px solid var(--line);background:var(--surface-2);color:var(--txt);transition:.16s}
+.rp-actions button.gmap{background:var(--accent);border-color:var(--accent);color:#fff}
+.rp-actions button:disabled{opacity:.4;cursor:not-allowed}
+
+.legend{background:#fff;border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 13px;box-shadow:var(--shadow);font-size:12px}
+.legend .lt{font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--txt-dim);margin-bottom:8px}
+.legend .li{display:flex;align-items:center;gap:8px;margin-bottom:5px;color:var(--txt-2)}
+.legend .li .d{width:10px;height:10px;border-radius:50%}
+
+#mtoggle{display:none;position:absolute;top:14px;left:14px;z-index:1100;width:48px;height:48px;border-radius:13px;
+  background:var(--accent);border:none;color:#fff;font-size:21px;cursor:pointer;box-shadow:0 6px 18px rgba(226,35,26,.4);
+  align-items:center;justify-content:center}
+#scrim{display:none;position:absolute;inset:0;background:rgba(20,30,55,.4);z-index:999}
+
+@media(max-width:880px){
+  #sidebar{position:absolute;top:0;left:0;bottom:0;width:90%;max-width:380px;transform:translateX(-100%);box-shadow:var(--shadow-lg)}
+  #sidebar.open{transform:translateX(0)}
+  #mtoggle{display:flex}#scrim.show{display:block}
+  #routebar{left:14px;right:14px;width:auto;top:74px}
+  .route-hint{font-size:11.5px;padding:9px 16px;bottom:18px}
+  .mk-label{max-width:90px;font-size:10px}
+}
+@media print{#sidebar,#mtoggle,#routebar,.route-hint,#loginOverlay{display:none!important}}
+.leg-tip{background:transparent!important;border:none!important;box-shadow:none!important;padding:0!important}
+.leg-tip::before{display:none!important}
+
+/* ===== LOGIN ===== */
+#loginOverlay{position:fixed;inset:0;z-index:3000;background:linear-gradient(135deg,#f4f6fa,#e9edf5);
+  display:flex;align-items:center;justify-content:center;padding:20px}
+#loginOverlay.hide{display:none}
+.login-card{background:#fff;border-radius:22px;box-shadow:0 24px 70px rgba(20,30,55,.18);
+  padding:38px 34px;width:100%;max-width:380px;position:relative;overflow:hidden}
+.login-card::before{content:"";position:absolute;top:-60px;right:-60px;width:160px;height:160px;border-radius:50%;
+  background:radial-gradient(circle,rgba(226,35,26,.12),transparent 70%)}
+.login-logo{width:58px;height:58px;border-radius:15px;background:var(--accent);display:flex;align-items:center;
+  justify-content:center;margin-bottom:18px;box-shadow:0 8px 22px rgba(226,35,26,.3)}
+.login-logo svg{width:32px;height:32px}
+.login-card h2{font-size:22px;font-weight:700;letter-spacing:-.4px}
+.login-card .sub{font-size:12.5px;color:var(--txt-dim);margin-top:4px;margin-bottom:24px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--txt-2);margin-bottom:6px}
+.field input{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:11px;
+  padding:13px 14px;font-family:inherit;font-size:14px;color:var(--txt);outline:none;transition:.2s}
+.field input:focus{border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px var(--accent-soft)}
+.login-btn{width:100%;margin-top:8px;padding:14px;border:none;border-radius:12px;background:var(--accent);
+  color:#fff;font-size:15px;font-weight:700;cursor:pointer;transition:.16s}
+.login-btn:hover{background:#c41e16}
+.login-err{color:var(--accent);font-size:12.5px;margin-top:12px;text-align:center;min-height:16px;font-weight:500}
+.login-lang{position:absolute;top:18px;right:18px;display:flex;gap:4px}
+.login-lang button{border:1px solid var(--line);background:#fff;font-size:11px;font-weight:600;padding:4px 8px;
+  border-radius:8px;color:var(--txt-dim);cursor:pointer}
+.login-lang button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+.userbox{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--txt-2);padding:0 4px}
+.userbox .av{width:24px;height:24px;border-radius:7px;background:var(--accent);color:#fff;font-size:12px;
+  font-weight:700;display:flex;align-items:center;justify-content:center}
+.logout-btn{border:1px solid var(--line);background:var(--surface-2);font-size:11px;font-weight:600;padding:5px 9px;
+  border-radius:8px;color:var(--txt-2);cursor:pointer;transition:.15s}
+.logout-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ===== SAVED RECORDS ===== */
+.saved{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.saved-head{padding:14px 18px 8px;display:flex;align-items:center;gap:8px}
+.saved-head .cnt{font-size:12px;color:var(--txt-2)}
+.saved-head .exp{margin-left:auto;border:1px solid var(--ok);background:#e9f7ef;color:var(--ok);font-size:12px;
+  font-weight:600;padding:7px 12px;border-radius:9px;cursor:pointer;transition:.15s;display:flex;align-items:center;gap:5px}
+.saved-head .exp:hover{background:var(--ok);color:#fff}
+.saved-head .exp:disabled{opacity:.4;cursor:not-allowed}
+.saved-list{flex:1;overflow-y:auto;padding:8px 14px 18px}
+.saved-list::-webkit-scrollbar{width:8px}.saved-list::-webkit-scrollbar-thumb{background:#dde3ec;border-radius:10px}
+.rec{background:#fff;border:1px solid var(--line);border-radius:var(--r-sm);padding:12px 13px;margin-bottom:8px;position:relative}
+.rec .rt{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600}
+.rec .rt .km{margin-left:auto;color:var(--accent);font-weight:700}
+.rec .rmeta{font-size:11px;color:var(--txt-dim);margin-top:5px}
+.rec .ops{position:absolute;right:10px;bottom:10px;display:flex;gap:6px}
+.rec .ops button{border:1px solid var(--line);background:var(--surface-2);font-size:11px;padding:4px 9px;
+  border-radius:7px;cursor:pointer;color:var(--txt-2);transition:.15s}
+.rec .ops button.ed:hover{border-color:var(--blue);color:var(--blue)}
+.rec .ops button.dl:hover{border-color:var(--accent);color:var(--accent)}
+.saved-empty{text-align:center;color:var(--txt-dim);font-size:13px;padding:40px 20px;line-height:1.6}
+.save-cur{margin:6px 18px;padding:12px 14px;background:var(--accent-soft);border-radius:var(--r-sm);
+  display:flex;align-items:center;gap:10px}
+.save-cur .txt{font-size:12.5px;flex:1;font-weight:500}
+.save-cur .txt b{color:var(--accent)}
+.save-cur button{border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:600;padding:8px 13px;
+  border-radius:9px;cursor:pointer}
+.save-cur.hide{display:none}
+
+/* edit modal */
+.modal{position:fixed;inset:0;z-index:2500;background:rgba(20,30,55,.45);display:none;align-items:center;justify-content:center;padding:20px}
+.modal.show{display:flex}
+.modal-card{background:#fff;border-radius:18px;box-shadow:var(--shadow-lg);padding:24px;width:100%;max-width:360px}
+.modal-card h3{font-size:17px;font-weight:700;margin-bottom:16px}
+.modal-card .field input{font-size:14px}
+.modal-actions{display:flex;gap:8px;margin-top:8px}
+.modal-actions button{flex:1;padding:11px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--line);background:var(--surface-2)}
+.modal-actions button.save{background:var(--accent);border-color:var(--accent);color:#fff}
+</style>
+</head>
+<body>
+<!-- LOGIN -->
+<div id="loginOverlay">
+  <div class="login-card">
+    <div class="login-lang" id="loginLang">
+      <button data-lang="th" class="active">ไทย</button>
+      <button data-lang="en">EN</button>
+      <button data-lang="ko">한국</button>
+    </div>
+    <div class="login-logo"><svg viewBox="0 0 24 24" fill="none"><path d="M3 21V7l9-4 9 4v14" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M8 21v-6h8v6" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg></div>
+    <h2 data-i18n="loginTitle">เข้าสู่ระบบ</h2>
+    <div class="sub" data-i18n="loginSub">MAKRO MAP · แผนที่สาขาแม็คโคร</div>
+    <div class="field"><label data-i18n="user">ชื่อผู้ใช้</label><input id="loginUser" type="text" autocomplete="username" placeholder="admin"></div>
+    <div class="field"><label data-i18n="pass">รหัสผ่าน</label><input id="loginPass" type="password" autocomplete="current-password" placeholder="••••••••"></div>
+    <button class="login-btn" id="loginBtn" data-i18n="signin">เข้าสู่ระบบ</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<div id="app">
+  <button id="mtoggle" aria-label="menu">☰</button>
+  <div id="scrim"></div>
+
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="mk"><svg viewBox="0 0 24 24" fill="none"><path d="M3 21V7l9-4 9 4v14" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M8 21v-6h8v6" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg></div>
+      <div>
+        <h1>MAKRO MAP</h1>
+        <p data-i18n="subtitle">แผนที่สาขาแม็คโครทั่วประเทศ</p>
+      </div>
+      <div class="lang-sw" id="langSw">
+        <button data-lang="th" class="active">ไทย</button>
+        <button data-lang="en">EN</button>
+        <button data-lang="ko">한국</button>
+      </div>
+    </div>
+
+    <div style="padding:8px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center">
+      <div class="userbox"><span class="av" id="userAv">A</span><span id="userName">admin</span></div>
+      <button class="logout-btn" id="logoutBtn" style="margin-left:auto" data-i18n="logout">ออกจากระบบ</button>
+      <span class="sync" id="syncBadge" style="margin-left:8px"><span class="led"></span><span id="syncTxt">ออฟไลน์</span></span>
+    </div>
+
+    <div class="nav">
+      <button class="active" data-pane="map" data-i18n="tabMap">🗺️ แผนที่</button>
+      <button data-pane="route" data-i18n="tabRoute">🧭 เส้นทาง</button>
+      <button data-pane="saved" data-i18n="tabSaved">💾 บันทึก</button>
+      <button data-pane="sum" data-i18n="tabSum">📊 สรุป</button>
+    </div>
+
+    <!-- MAP -->
+    <div class="pane" id="paneMap">
+      <div class="search-wrap"><span class="si">🔍</span>
+        <input id="search" type="text" data-i18n-ph="search" placeholder="ค้นหาชื่อสาขา / รหัส..."></div>
+      <div class="regions" id="regions"></div>
+      <div class="list" id="list"></div>
+    </div>
+
+    <!-- ROUTE -->
+    <div class="pane hide" id="paneRoute">
+      <div class="rp">
+        <div class="rp-head"><p data-i18n="routeHelp">แตะหมุดสาขาบนแผนที่ตามลำดับ ระบบจะตีเส้นและบอกระยะแต่ละช่วง (กม.)</p></div>
+        <div class="rp-total"><span class="v" id="rpTotal">0</span><span class="u" data-i18n="km">กม.</span><span class="legs" id="rpLegs"></span></div>
+        <div class="save-cur hide" id="saveCur">
+          <div class="txt" id="saveCurTxt"></div>
+          <button id="saveCurBtn" data-i18n="saveBtn">💾 บันทึก</button>
+        </div>
+        <div class="rp-list" id="rpList"></div>
+        <div class="rp-actions">
+          <button id="rpClear" data-i18n="clearAll">ล้างทั้งหมด</button>
+          <button class="gmap" id="rpGmap" data-i18n="navAll">นำทางทั้งเส้นทาง</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SAVED -->
+    <div class="pane hide" id="paneSaved">
+      <div class="saved">
+        <div class="saved-head">
+          <span class="cnt" id="savedCnt">0 รายการ</span>
+          <button class="exp" id="exportBtn" data-i18n="exportXlsx">📊 Export Excel</button>
+        </div>
+        <div class="saved-list" id="savedList"></div>
+      </div>
+    </div>
+
+    <!-- SUMMARY -->
+    <div class="pane hide" id="paneSum"><div class="summary" id="summary"></div></div>
+  </aside>
+
+  <div id="map"></div>
+
+  <div id="routebar" class="hidden">
+    <div class="rb-title">📏 <span data-i18n="measure">วัดระยะ 2 จุด</span></div>
+    <div class="rb-row"><span class="dot a"></span><span class="val empty" id="rbA" data-i18n="pickA">เลือกจุดต้นทาง</span></div>
+    <div class="rb-row"><span class="dot b"></span><span class="val empty" id="rbB" data-i18n="pickB">เลือกจุดปลายทาง</span></div>
+    <div class="rb-dist"><span class="km" id="rbKm">—</span><span class="u" data-i18n="km">กม.</span><span class="straight" id="rbStraight"></span></div>
+    <div class="rb-actions">
+      <button id="rbSave" data-i18n="saveBtn">💾 บันทึก</button>
+      <button id="rbClear" data-i18n="clear">ล้าง</button>
+      <button class="gmap" id="rbGmap" data-i18n="navGmap">นำทาง</button>
+    </div>
+  </div>
+
+  <div class="route-hint hidden" id="routeHint" data-i18n="hint">โหมดวัดระยะ: แตะสาขาเพื่อเลือกต้นทาง → ปลายทาง</div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal" id="editModal">
+  <div class="modal-card">
+    <h3 data-i18n="editTitle">แก้ไขบันทึก</h3>
+    <div class="field"><label data-i18n="recNote">หมายเหตุ</label><input id="editNote" type="text"></div>
+    <div class="modal-actions">
+      <button id="editCancel" data-i18n="cancel">ยกเลิก</button>
+      <button class="save" id="editSave" data-i18n="save">บันทึก</button>
+    </div>
+  </div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* ============================================================
+   FIREBASE CONFIG — ตั้งค่าเรียบร้อยแล้ว (โปรเจกต์ makro-map)
+============================================================ */
+const FIREBASE_CONFIG = {
+  apiKey:"AIzaSyBtervn8ge5zGIKfrhRo12ZYkRHmsWFLoI",
+  authDomain:"makro-map.firebaseapp.com",
+  databaseURL:"https://makro-map-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"makro-map",
+  storageBucket:"makro-map.firebasestorage.app",
+  messagingSenderId:"502274943139",
+  appId:"1:502274943139:web:c5072a79eb2c0019cdb716",
+  measurementId:"G-ML1G99MCG6"
+};
+const DB_BRANCHES="makro_branches";     // ข้อมูลสาขา
+const DB_RECORDS="makro_distance_logs";  // บันทึกระยะทาง
+
+/* LOGIN (เปลี่ยนได้ที่นี่) */
+const AUTH_USER="admin";
+const AUTH_PASS="admin@1234";
+
+/* ============================================================
+   I18N
+============================================================ */
+function ls_get(k,d){try{return localStorage.getItem(k)||d}catch(e){return d}}
+function ls_set(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+let LANG=ls_get('makro_lang','th');
+
+const I18N={
+ th:{subtitle:"แผนที่สาขาแม็คโครทั่วประเทศ",tabMap:"🗺️ แผนที่",tabRoute:"🧭 เส้นทาง",tabSaved:"💾 บันทึก",tabSum:"📊 สรุป",
+   search:"ค้นหาชื่อสาขา / จังหวัด / รหัส...",all:"ทั้งหมด",measure:"วัดระยะ 2 จุด",pickA:"เลือกจุดต้นทาง",pickB:"เลือกจุดปลายทาง",
+   km:"กม.",clear:"ล้าง",navGmap:"นำทาง",hint:"โหมดวัดระยะ: แตะสาขาเพื่อเลือกต้นทาง → ปลายทาง",
+   setA:"ตั้งต้นทาง",setB:"ตั้งปลายทาง",nav:"นำทาง",branchOf:"แม็คโคร",code:"รหัส",straight:"(เส้นตรง)",
+   routeHelp:"แตะหมุดสาขาบนแผนที่ตามลำดับ ระบบจะตีเส้นและบอกระยะแต่ละช่วง (กม.)",
+   clearAll:"ล้างทั้งหมด",navAll:"นำทางทั้งเส้นทาง",routeEmpty:"ยังไม่มีจุดในเส้นทาง<br>แตะหมุดสาขาบนแผนที่เพื่อเริ่ม",
+   kpiTotal:"สาขาทั้งหมด",kpiReg:"ภูมิภาค",kpiProv:"จังหวัดที่ครอบคลุม",kpiSaved:"บันทึกระยะทาง",kpiAvg:"ระยะเฉลี่ย/บันทึก",
+   byRegion:"จำนวนสาขาแยกตามภูมิภาค",branches:"สาขา",print:"🖨️ พิมพ์ / บันทึก PDF สำหรับนำเสนอ",
+   legendT:"ภูมิภาค",online:"ซิงค์ออนไลน์",offline:"ออฟไลน์",offErr:"ออฟไลน์ (เชื่อมต่อไม่ได้)",
+   notFound:"ไม่พบสาขาที่ค้นหา",addRoute:"เพิ่มเข้าเส้นทาง",measureBtn:"📏 วัดระยะทาง",measuring:"📏 กำลังวัด · แตะปิด",
+   totalRoute:"ระยะทางรวม",saveBtn:"💾 บันทึก",saved:"บันทึกแล้ว ✓",records:"รายการ",exportXlsx:"📊 Export Excel",
+   savedEmpty:"ยังไม่มีบันทึกระยะทาง<br>วัดระยะแล้วกดปุ่มบันทึก",del:"ลบ",edit:"แก้ไข",
+   editTitle:"แก้ไขบันทึก",recNote:"หมายเหตุ",cancel:"ยกเลิก",save:"บันทึก",confirmDel:"ลบบันทึกนี้?",
+   loginTitle:"เข้าสู่ระบบ",loginSub:"MAKRO MAP · แผนที่สาขาแม็คโคร",user:"ชื่อผู้ใช้",pass:"รหัสผ่าน",
+   signin:"เข้าสู่ระบบ",logout:"ออกจากระบบ",loginErr:"ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง",
+   curRoute:"เส้นทางปัจจุบัน",stops:"จุด",saveNote:"หมายเหตุ (ไม่บังคับ)"},
+ en:{subtitle:"Makro Branch Map · Thailand",tabMap:"🗺️ Map",tabRoute:"🧭 Route",tabSaved:"💾 Saved",tabSum:"📊 Summary",
+   search:"Search branch / province / code...",all:"All",measure:"Measure 2 points",pickA:"Pick origin",pickB:"Pick destination",
+   km:"km",clear:"Clear",navGmap:"Navigate",hint:"Measure mode: tap branches to set origin → destination",
+   setA:"Set origin",setB:"Set dest.",nav:"Navigate",branchOf:"Makro",code:"Code",straight:"(straight line)",
+   routeHelp:"Tap branch pins in order to build a route. Each leg distance (km) is shown.",
+   clearAll:"Clear all",navAll:"Navigate full route",routeEmpty:"No stops yet<br>Tap branch pins on the map to start",
+   kpiTotal:"Total branches",kpiReg:"Regions",kpiProv:"Provinces covered",kpiSaved:"Saved logs",kpiAvg:"Avg dist/log",
+   byRegion:"Branches by region",branches:"branches",print:"🖨️ Print / Save PDF",
+   legendT:"Region",online:"Synced online",offline:"Offline",offErr:"Offline (no connection)",
+   notFound:"No branches found",addRoute:"Add to route",measureBtn:"📏 Measure",measuring:"📏 Measuring · tap to close",
+   totalRoute:"Total distance",saveBtn:"💾 Save",saved:"Saved ✓",records:"records",exportXlsx:"📊 Export Excel",
+   savedEmpty:"No saved distances yet<br>Measure then tap Save",del:"Delete",edit:"Edit",
+   editTitle:"Edit record",recNote:"Note",cancel:"Cancel",save:"Save",confirmDel:"Delete this record?",
+   loginTitle:"Sign in",loginSub:"MAKRO MAP · Branch Map",user:"Username",pass:"Password",
+   signin:"Sign in",logout:"Logout",loginErr:"Invalid username or password",
+   curRoute:"Current route",stops:"stops",saveNote:"Note (optional)"},
+ ko:{subtitle:"태국 막로 지점 지도",tabMap:"🗺️ 지도",tabRoute:"🧭 경로",tabSaved:"💾 저장",tabSum:"📊 요약",
+   search:"지점 / 도 / 코드 검색...",all:"전체",measure:"두 지점 측정",pickA:"출발지 선택",pickB:"도착지 선택",
+   km:"km",clear:"지우기",navGmap:"길찾기",hint:"측정 모드: 지점을 눌러 출발지 → 도착지 선택",
+   setA:"출발지 설정",setB:"도착지 설정",nav:"길찾기",branchOf:"막로",code:"코드",straight:"(직선)",
+   routeHelp:"지점 핀을 순서대로 눌러 경로를 만드세요. 각 구간 거리(km)가 표시됩니다.",
+   clearAll:"모두 지우기",navAll:"전체 경로 길찾기",routeEmpty:"경로에 지점이 없습니다<br>지도의 핀을 눌러 시작하세요",
+   kpiTotal:"전체 지점",kpiReg:"지역",kpiProv:"포함된 도",kpiSaved:"저장된 기록",kpiAvg:"평균 거리/기록",
+   byRegion:"지역별 지점 수",branches:"개",print:"🖨️ 인쇄 / PDF 저장",
+   legendT:"지역",online:"온라인 동기화",offline:"오프라인",offErr:"오프라인 (연결 안 됨)",
+   notFound:"검색된 지점 없음",addRoute:"경로에 추가",measureBtn:"📏 거리 측정",measuring:"📏 측정 중 · 눌러서 닫기",
+   totalRoute:"총 거리",saveBtn:"💾 저장",saved:"저장됨 ✓",records:"건",exportXlsx:"📊 Excel 내보내기",
+   savedEmpty:"저장된 거리가 없습니다<br>측정 후 저장을 누르세요",del:"삭제",edit:"편집",
+   editTitle:"기록 편집",recNote:"메모",cancel:"취소",save:"저장",confirmDel:"이 기록을 삭제할까요?",
+   loginTitle:"로그인",loginSub:"MAKRO MAP · 지점 지도",user:"사용자 이름",pass:"비밀번호",
+   signin:"로그인",logout:"로그아웃",loginErr:"사용자 이름 또는 비밀번호가 잘못되었습니다",
+   curRoute:"현재 경로",stops:"개 지점",saveNote:"메모 (선택)"}
+};
+function t(k){return (I18N[LANG]&&I18N[LANG][k])||I18N.th[k]||k;}
+
+const REGIONS={"bkk":{color:"#e2231a"},"central":{color:"#2563eb"},"north":{color:"#0f9d58"},
+  "ne":{color:"#d99a00"},"east":{color:"#7c3aed"},"west":{color:"#db2777"},"south":{color:"#0891b2"}};
+const REG_NAME={
+  bkk:{th:"กรุงเทพฯ & ปริมณฑล",en:"Bangkok & Vicinity",ko:"방콕 및 수도권"},
+  central:{th:"ภาคกลาง",en:"Central",ko:"중부"},north:{th:"ภาคเหนือ",en:"Northern",ko:"북부"},
+  ne:{th:"ภาคอีสาน",en:"Northeastern",ko:"동북부"},east:{th:"ภาคตะวันออก",en:"Eastern",ko:"동부"},
+  west:{th:"ภาคตะวันตก",en:"Western",ko:"서부"},south:{th:"ภาคใต้",en:"Southern",ko:"남부"}};
+function regName(r){return (REG_NAME[r]&&REG_NAME[r][LANG])||r;}
+function bName(b){return LANG==='en'?(b.name_en||b.name):LANG==='ko'?(b.name_ko||b.name):b.name;}
+
+/* ============================================================
+   DEFAULT BRANCH DATA
+============================================================ */
+const DEFAULT_BRANCHES = [
+  {code:"001", name:"ลาดพร้าว", name_en:"LARDPRAO", name_ko:"랏프라오", prov:"กรุงเทพฯ", region:"bkk", lat:13.765115, lng:100.640368, addr:"3498 ถนนลาดพร้าว แขวงคลองจั่น เขตบางกะปิ กรุงเทพฯ 10240"},
+  {code:"002", name:"แจ้งวัฒนะ", name_en:"J-WATTANA", name_ko:"쨍왓타나", prov:"นนทบุรี", region:"bkk", lat:13.894423, lng:100.548504, addr:"34/54 หมู่ 1 ถนนแจ้งวัฒนะ ต.คลองเกลือ อ.ปากเกร็ด จ.นนทบุรี 11120"},
+  {code:"003", name:"ศรีนครินทร์", name_en:"SRINAKARIN", name_ko:"시나카린", prov:"สมุทรปราการ", region:"bkk", lat:13.650063, lng:100.642138, addr:"422 หมู่ 5 ถนนศรีนครินทร์ ต.สำโรงเหนือ อ.เมือง จ.สมุทรปราการ 10270"},
+  {code:"004", name:"บางบอน", name_en:"BANGBON", name_ko:"방본", prov:"กรุงเทพฯ", region:"bkk", lat:13.670585, lng:100.408073, addr:"210 ถ.กาญจนภิเษก แขวงคลองพราน เขตบางบอน กรุงเทพมหานคร 10150"},
+  {code:"005", name:"ชลบุรี", name_en:"CHONBURI", name_ko:"촌부리", prov:"ชลบุรี", region:"east", lat:13.321728, lng:100.960506, addr:"55/3 หมู่2 ถนนสุขุมวิท ต.เสม็ด อ.เมืองชลบุรี จ.ชลบุรี 20000"},
+  {code:"006", name:"เชียงใหม่", name_en:"CHIANGMAI", name_ko:"치앙마이", prov:"เชียงใหม่", region:"north", lat:18.785009, lng:99.028449, addr:"152 หมู่ 6 ต.หนองป่าครั่ง อ.เมืองเชียงใหม่ จ. เชียงใหม่ 50000"},
+  {code:"007", name:"นครราชสีมา", name_en:"KORAT", name_ko:"나콘랏차시마", prov:"นครราชสีมา", region:"ne", lat:14.994027, lng:102.099086, addr:"523 ถ.มิตรภาพ-หนองคาย ต.ในเมือง อ.เมือง จ.นครราชสีมา 30000"},
+  {code:"008", name:"รังสิต", name_en:"RANGSIT", name_ko:"랑싯", prov:"ปทุมธานี", region:"bkk", lat:13.9743, lng:100.616502, addr:"189 ถ.พหลโยธิน ต.ประชาธิปัตย์ อ.ธัญบุรี จ.ปทุมธานี 12130"},
+  {code:"009", name:"หาดใหญ่", name_en:"HATYAI", name_ko:"핫야이", prov:"สงขลา", region:"south", lat:6.98962, lng:100.48913, addr:"414 ถ.กาญจนวนิช ต.คอหงส์ อ.หาดใหญ่ จ.สงขลา 90110"},
+  {code:"010", name:"อุดรธานี", name_en:"UDONTANI", name_ko:"우돈타니", prov:"อุดรธานี", region:"ne", lat:17.390069, lng:102.816413, addr:"207/3หมู่ 14 ต.หมากแข้ง อ.เมือง จ.อุดรธานี 41000"},
+  {code:"011", name:"พิษณุโลก", name_en:"PHITSANULO", name_ko:"핏사눌록", prov:"พิษณุโลก", region:"north", lat:16.794446, lng:100.232205, addr:"1199 ถนนบรมตรีโลกนารถ2 ต.ในเมือง อ.เมือง จ.พิษณุโลก 65000"},
+  {code:"012", name:"ขอนแก่น", name_en:"KHONKAN", name_ko:"콘깬", prov:"ขอนแก่น", region:"ne", lat:16.405217, lng:102.814173, addr:"195 หมู่ 12 ถ.มิตรภาพ ต.เมืองเก่า อ.เมืองขอนแก่น จ.ขอนแก่น 40000"},
+  {code:"013", name:"สุราษฎร์ธานี", name_en:"SURAJTHANI", name_ko:"수랏타니", prov:"สุราษฎร์ธานี", region:"south", lat:9.121432, lng:99.338793, addr:"216 หมู่ 4 ถ.ชนเกษม ต.มะขามเตี้ย อ.เมือง จ.สุราษฎร์ธานี 84000"},
+  {code:"014", name:"อุบลราชธานี", name_en:"UBON", name_ko:"우본랏차타니", prov:"อุบลราชธานี", region:"ne", lat:15.268705, lng:104.832722, addr:"333 หมู่15 ถ.เลี่ยงเมือง ต.ขามใหญ่ อ.เมือง จ.อุบลราชธานี 34000"},
+  {code:"015", name:"ระยอง", name_en:"RAYONG", name_ko:"라용", prov:"ระยอง", region:"east", lat:12.695955, lng:101.263775, addr:"8/2 หมู่ที่ 3 ต.ทับมา อ.เมือง จ.ระยอง 21000"},
+  {code:"016", name:"นครสวรรค์", name_en:"N. SAWARN", name_ko:"나콘사완", prov:"นครสวรรค์", region:"central", lat:15.683718, lng:100.130034, addr:"67/15 หมู่ 6 ต.นครสวรรค์ออก อ.เมืองนครสวรรค์ จ.นครสวรรค์ 60000"},
+  {code:"017", name:"จรัญสนิทวงศ์", name_en:"J.SNITWONG", name_ko:"짜란사닛웡", prov:"กรุงเทพฯ", region:"bkk", lat:13.761955, lng:100.470118, addr:"521& 521/27 ถ.จรัญสนิทวงศ์ แขวงบางขุนศรี เขตบางกอกน้อย กรุงเทพฯ 10700"},
+  {code:"018", name:"สาทร", name_en:"SATHORN", name_ko:"사톤", prov:"กรุงเทพฯ", region:"bkk", lat:13.709762, lng:100.535388, addr:"1 ถ.นราธิวาสราชนครินทร์ แขวงทุ่งวัดดอน เขตสาทร กรุงเทพฯ 10120"},
+  {code:"019", name:"นครปฐม", name_en:"N.PATHOM", name_ko:"나콘빠톰", prov:"นครปฐม", region:"bkk", lat:13.805882, lng:100.008801, addr:"86 หมู่ที 13 ต.โพรงมะเดื่อ อ.เมือง จ.นครปฐม 73000"},
+  {code:"020", name:"สุรินทร์", name_en:"SURIN", name_ko:"수린", prov:"สุรินทร์", region:"ne", lat:14.870613, lng:103.512138, addr:"4/3 ถ.หลักเมือง ต.ในเมือง อ.เมือง จ.สุรินทร์ 32000"},
+  {code:"021", name:"สามเสน", name_en:"SAMSANE", name_ko:"삼센", prov:"กรุงเทพฯ", region:"bkk", lat:13.791213, lng:100.513, addr:"935/11 ถ.สามเสน แขวงถนนนครไชยศรี เขตดุสิต กรุงเทพฯ 10300"},
+  {code:"022", name:"นครศรีธรรมราช", name_en:"N.SITHAMRT", name_ko:"나콘시탐마랏", prov:"นครศรีธรรมราช", region:"south", lat:8.434901, lng:99.927847, addr:"614 ถนนกะโรม ต.โพธิ์เสด็จ อ.เมืองนครศรีธรรมราช จ.นครศรีธรรมราช 80000"},
+  {code:"023", name:"เชียงราย", name_en:"CHIANGRAI", name_ko:"치앙라이", prov:"เชียงราย", region:"north", lat:19.956741, lng:99.852834, addr:"12 หมู่ 17 ต. บ้านดู่ อ. เมืองเชียงราย จ.เชียงราย 57100"},
+  {code:"024", name:"สกลนคร", name_en:"SAKONNAKOR", name_ko:"사콘나콘", prov:"สกลนคร", region:"ne", lat:17.174314, lng:104.128533, addr:"459 ม.3 ถนนบ้านกกส้มโฮง ตำบลธาตุเชิงชุม อ.เมืองสกลนคร จ.สกลนคร 47000"},
+  {code:"025", name:"สุพรรณบุรี", name_en:"SUPHANBURI", name_ko:"수판부리", prov:"สุพรรณบุรี", region:"central", lat:14.48289, lng:100.129738, addr:"290/2 หมู่ 4 ตำบลสนามชัย อ.เมือง จ.สุพรรณบุรี 72000"},
+  {code:"026", name:"จันทบุรี", name_en:"CHANTABURI", name_ko:"짠타부리", prov:"จันทบุรี", region:"east", lat:12.616448, lng:102.143353, addr:"21 /11 หมู่ที่ 11 ต.พลับพลา อ.เมืองจันทบุรี จ.จันทบุรี 22000"},
+  {code:"027", name:"ภูเก็ต", name_en:"PHUKET", name_ko:"푸껫", prov:"ภูเก็ต", region:"south", lat:7.894429, lng:98.363575, addr:"77 หมู่ที่ 5 ตำบลวิชิต อ.เมืองภูเก็ต จ. ภูเก็ต 83000"},
+  {code:"028", name:"ร้อยเอ็ด", name_en:"ROIET", name_ko:"로이엣", prov:"ร้อยเอ็ด", region:"ne", lat:16.058066, lng:103.63055, addr:"32/1 ถนนเทวาภิบาล ต.ในเมือง อ.เมืองร้อยเอ็ด จ. ร้อยเอ็ด 45000"},
+  {code:"029", name:"ตรัง", name_en:"TRANG", name_ko:"뜨랑", prov:"ตรัง", region:"south", lat:7.537011, lng:99.620233, addr:"89 หมู่ที่ 2 ตำบลโคกหล่อ อ.เมืองตรัง จ. ตรัง 92000"},
+  {code:"030", name:"สระแก้ว", name_en:"SA KAEO", name_ko:"사깨오", prov:"สระแก้ว", region:"east", lat:13.809281, lng:102.078789, addr:"1000 ถ.สุวรรณศร ตำบลสระแก้ว อ.เมืองสระแก้ว จ. สระแก้ว 27000"},
+  {code:"031", name:"เกาะสมุย", name_en:"SAMUI", name_ko:"코사무이", prov:"สุราษฎร์ธานี", region:"south", lat:9.53903, lng:100.041274, addr:"115/52 หมู่ที่ 6 ตำบลบ่อผุด อ.เกาะสมุย จ. สุราษฎร์ธานี 84320"},
+  {code:"032", name:"บุรีรัมย์", name_en:"BURI RAM", name_ko:"부리람", prov:"บุรีรัมย์", region:"ne", lat:14.974972, lng:103.070239, addr:"151 หมู่ 7 ต.อิสาณ อ.เมืองบุรีรัมย์ จ.บุรัรัมย์ 31000"},
+  {code:"033", name:"ศรีสะเกษ", name_en:"SI SA KET", name_ko:"시사껫", prov:"ศรีสะเกษ", region:"ne", lat:15.106548, lng:104.370138, addr:"112 หมู่ 6 ต.โพธิ์ อ.เมืองศรีสะเกษ จ.ศรีสะเกษ 33000"},
+  {code:"034", name:"ลำพูน", name_en:"LAMPHUN", name_ko:"람푼", prov:"ลำพูน", region:"north", lat:18.594163, lng:99.040866, addr:"204 หมู่ 4 ต.บ้านกลาง อ.เมืองลำพูน จ.ลำพูน 51000"},
+  {code:"035", name:"กระบี่", name_en:"KRABI", name_ko:"끄라비", prov:"กระบี่", region:"south", lat:8.117684, lng:98.872268, addr:"119 หมู่ 1 ต.ไสไทย อ.เมืองกระบี่ จ.กระบี่ 81000"},
+  {code:"036", name:"เพชรบุรี", name_en:"PHETCHABUR", name_ko:"펫차부리", prov:"เพชรบุรี", region:"west", lat:13.124783, lng:99.888667, addr:"103 หมู่ที่ 1 ต.หัวสะพาน อ.เมืองเพรชบุรี จ.เพรชบุรี 76000"},
+  {code:"037", name:"ชัยภูมิ", name_en:"CHAIYAPHUM", name_ko:"차이야품", prov:"ชัยภูมิ", region:"ne", lat:15.775905, lng:102.026934, addr:"999 หมู่ 1 ต.บุ้งเคล้า อ.เมืองชัยภูมิ จ. ชัยภูมิ 36000"},
+  {code:"038", name:"สระบุรี", name_en:"SARABURI", name_ko:"사라부리", prov:"สระบุรี", region:"central", lat:14.551325, lng:100.963143, addr:"66/3 หมู่ที่ 2 ต.ตลิ่งชัน อ.เมืองสระบุรี จ.สระบุรี 18000"},
+  {code:"039", name:"ปราณบุรี", name_en:"PRANBURI", name_ko:"쁘란부리", prov:"ประจวบคีรีขันธ์", region:"west", lat:12.423567, lng:99.91994, addr:"567 หมู่ที่ 3 ต.วังก์พง อ.ปราณบุรี จ.ประจวบคิรีขันธ์ 77120"},
+  {code:"040", name:"ฉะเชิงเทรา", name_en:"CHACHOENGS", name_ko:"차층사오", prov:"ฉะเชิงเทรา", region:"east", lat:13.719988, lng:101.042118, addr:"21/4 หมู่ที่ 5 ต.วังตะเคียน อ.เมือง จ.ฉะเชิงเทรา 24000"},
+  {code:"041", name:"เชียงใหม่2", name_en:"CHIANG MAI", name_ko:"치앙마이", prov:"เชียงใหม่", region:"north", lat:18.740783, lng:98.958893, addr:"191 หมู่ที่ 7 ต.แม่เหียะ อ.เมืองเชียงใหม่ จ.เชียงใหม่ 50100"},
+  {code:"042", name:"รามอินทรา", name_en:"RAMINTRA", name_ko:"람인트라", prov:"กรุงเทพฯ", region:"bkk", lat:13.811247, lng:100.696246, addr:"904 ถ.รามอินทรา แขวงคันนายาว เขตคันนายาว กรุงเทพฯ 10230"},
+  {code:"043", name:"ชุมพร", name_en:"CHUMPHON", name_ko:"춤폰", prov:"ชุมพร", region:"south", lat:10.504662, lng:99.133143, addr:"199 หมู่ 5 ต.วังไฟ อ.เมือง จ.ชุมพร 86000"},
+  {code:"044", name:"พัทยา", name_en:"PATTAYA", name_ko:"파타야", prov:"ชลบุรี", region:"east", lat:12.897775, lng:100.894752, addr:"22/24 หมู่11 ตำบลหนองปรือ อำเภอบางละมุง จังหวัดชลบุรี 20150"},
+  {code:"045", name:"กำแพงเพชร", name_en:"KAMPANGPHE", name_ko:"깜팽펫", prov:"กำแพงเพชร", region:"central", lat:16.451393, lng:99.538064, addr:"889 ถ.ราชดำเนิน 1 ต.ในเมือง อ.เมืองกำแพงเพชร จ.กำแพงเพชร 62000"},
+  {code:"046", name:"กาญจนบุรี", name_en:"KANJANABUR", name_ko:"깐짜나부리", prov:"กาญจนบุรี", region:"west", lat:13.981128, lng:99.584163, addr:"102 หมู่ 2 ต.ท่าล้อ อ.ท่าม่วง จ.กาญจนบุรี 71000"},
+  {code:"047", name:"ลพบุรี", name_en:"LOP BURI", name_ko:"롭부리", prov:"ลพบุรี", region:"central", lat:14.782773, lng:100.687982, addr:"227 หมู่ 5 ต.ท่าศาลา อ.เมืองลพบุรี จ.ลพบุรี 15000"},
+  {code:"048", name:"หนองคาย", name_en:"NONGKHAI", name_ko:"농카이", prov:"หนองคาย", region:"ne", lat:17.835615, lng:102.755934, addr:"232 หมู่ 12 ต.โพธิ์ชัย อ.เมืองหนองคาย จ.หนองคาย 43000"},
+  {code:"049", name:"ราชบุรี", name_en:"RATCHABURI", name_ko:"랏차부리", prov:"ราชบุรี", region:"west", lat:13.541399, lng:99.799922, addr:"249 หมู่ 11 ต.เจดีย์หัก อ.เมืองราชบุรี จ.ราชบุรี 70000"},
+  {code:"050", name:"แม่ริม", name_en:"MAE-RIM", name_ko:"매림", prov:"เชียงใหม่", region:"north", lat:18.898861, lng:98.952098, addr:"212 หมู่ 4 ต.แม่สา อ.แม่ริม จ.เชียงใหม่ 50180"},
+  {code:"051", name:"อยุธยา", name_en:"AYUTTAYA", name_ko:"아유타야", prov:"พระนครศรีอยุธยา", region:"central", lat:14.320635, lng:100.635657, addr:"222 หมู่ 2 ต.คานหาม อ.อุทัย จ.พระนครศรีอยุธยา 13210"},
+  {code:"052", name:"ลำปาง", name_en:"LAMPANG", name_ko:"람빵", prov:"ลำปาง", region:"north", lat:18.275304, lng:99.484307, addr:"110/3 ถ.ไฮเวย์-ลำปาง-งาว ต.พระบาท อ.เมืองลำปาง จ.ลำปาง 52000"},
+  {code:"053", name:"หัวหิน", name_en:"HUA-HIN", name_ko:"후아힌", prov:"ประจวบคีรีขันธ์", region:"west", lat:12.620527, lng:99.949086, addr:"58/164 ซ.หมู่บ้านบ่อฝ้าย ต.หัวหิน อ.หัวหิน จ.ประจวบคิรีขันธ์ 77110"},
+  {code:"054", name:"คลองหลวง", name_en:"KHLONGLOUN", name_ko:"클롱루앙", prov:"ปทุมธานี", region:"bkk", lat:14.067028, lng:100.633156, addr:"39 หมู่ 7 ต.คลองหลวง อ.คลองหลวง จ.ปทุมธานี 12120"},
+  {code:"055", name:"เลย", name_en:"LOEI", name_ko:"러이", prov:"เลย", region:"ne", lat:17.470277, lng:101.723356, addr:"118 หมู่ 11 ต.นาอาน อ.เมืองเลย จ.เลย 42000"},
+  {code:"056", name:"เพชรบูรณ์", name_en:"PHETCHABUN", name_ko:"펫차분", prov:"เพชรบูรณ์", region:"central", lat:16.388052, lng:101.129352, addr:"300 หมู่ที่ 10 ต. ชอนไพร อ.เมืองเพชรบูรณ์ จ.เพชรบูรณ์ 67000"},
+  {code:"057", name:"บางพลี", name_en:"BANGPLEE", name_ko:"방플리", prov:"สมุทรปราการ", region:"bkk", lat:13.634853, lng:100.711965, addr:"79 หมู่ที่ 1 ต.ราชาเทวะ อ. บางพลี จ.สมุทรปราการ 10540"},
+  {code:"058", name:"มุกดาหาร", name_en:"MUKDAHAN", name_ko:"묵다한", prov:"มุกดาหาร", region:"ne", lat:16.542009, lng:104.708113, addr:"4/9 ถ.ชยางกูร ต.มุกดาหาร อ.เมืองมุกดาหาร จ. มุกดาหาร 49000"},
+  {code:"059", name:"สตูล", name_en:"SATUN", name_ko:"사뚠", prov:"สตูล", region:"south", lat:6.67145, lng:100.074431, addr:"889 หมู่ 6 ต.คลองขุด อ.เมืองสตูล จ. สตูล 91000"},
+  {code:"060", name:"ตราด", name_en:"TRAT", name_ko:"뜨랏", prov:"ตราด", region:"east", lat:12.259183, lng:102.516413, addr:"1138 หมู่ 1 ต.วังกระแจะ อ.เมืองตราด จ. ตราด 23000"},
+  {code:"061", name:"ชุมแพ", name_en:"CHUMPHAE", name_ko:"춤패", prov:"ขอนแก่น", region:"ne", lat:16.552506, lng:102.086476, addr:"201 หมู่ 2 ต.หนองไผ่ อ.ชุมแพ จ.ขอนแก่น 40130"},
+  {code:"062", name:"ราไวย์", name_en:"RAWAI", name_ko:"라와이", prov:"ภูเก็ต", region:"south", lat:7.815223, lng:98.339795, addr:"5/47 หมู่ที่ 5 ต.ราไวย์ อ.เมืองภูเก็ต จ.ภูเก็ต 83130"},
+  {code:"063", name:"นครพนม", name_en:"NAKHONPANO", name_ko:"나콘파놈", prov:"นครพนม", region:"ne", lat:17.388173, lng:104.767147, addr:"405 ถ.นิตโย ต.หนองญาติ อ.เมืองนครพนม จ.นครพนม 48000"},
+  {code:"064", name:"เกาะพะงัน", name_en:"PHANGAN", name_ko:"코팡안", prov:"สุราษฎร์ธานี", region:"south", lat:9.708958, lng:99.996325, addr:"114/5 หมู่ที่ 1 ตำบลเกาะพะงัน อำเภอเกาะพะงัน จ.สุราษฎร์ธานี 84280"},
+  {code:"065", name:"บึงกาฬ", name_en:"BUENGKAN", name_ko:"븡깐", prov:"บึงกาฬ", region:"ne", lat:18.365545, lng:103.640896, addr:"680 หมู่ที่ 7 ตำบลวิศิษฐ์ อำเภอเมืองบึงกาฬ จ.บึงกาฬ 38000"},
+  {code:"066", name:"พัทยาเหนือ", name_en:"N- PATTAYA", name_ko:"북파타야", prov:"ชลบุรี", region:"east", lat:12.948465, lng:100.902617, addr:"555/1 หมู่6 ตำบล นาเกลือ อำเภอ บางละมุง จ. ชลบุรี 20150"},
+  {code:"067", name:"แม่สาย", name_en:"MAE SAI", name_ko:"매사이", prov:"เชียงราย", region:"north", lat:20.406733, lng:99.885767, addr:"740 หมู่ที่ 9 ตำบลเวียงพางคำ อำเภอแม่สาย จ.เชียงราย 57130"},
+  {code:"068", name:"ศาลายา", name_en:"SALAYA", name_ko:"살라야", prov:"นครปฐม", region:"bkk", lat:13.801858, lng:100.305235, addr:"87/18 หมู่ที่ 3 ต.ศาลายา อ.พุทธมณฑล จ.นครปฐม 73170"},
+  {code:"069", name:"พัทลุง", name_en:"PHATTHALUN", name_ko:"팟탈룽", prov:"พัทลุง", region:"south", lat:7.585837, lng:100.055341, addr:"207 หมู่ที่ 9 ต.ท่ามิหรา อ.เมือง จ.พัทลุง 93000"},
+  {code:"070", name:"สุโขทัย", name_en:"SUKHOTHAI", name_ko:"수코타이", prov:"สุโขทัย", region:"north", lat:17.016946, lng:99.846212, addr:"236 หมู่ที่ 4 ตำบลบ้านหลุม อ.เมือง จ.สุโขทัย 64000"},
+  {code:"071", name:"ป่าตอง", name_en:"PATONG", name_ko:"빠통", prov:"ภูเก็ต", region:"south", lat:7.884203, lng:98.301736, addr:"140/30 & 140/35 ถ.นาใน ต.ป่าตอง อ.กะทู้ จ.ภูเก็ต 83150"},
+  {code:"072", name:"สมุทรสาคร", name_en:"SAMUTSAKOR", name_ko:"사뭇사콘", prov:"สมุทรสาคร", region:"bkk", lat:13.568814, lng:100.303352, addr:"99/555 หมู่ที่4 ตำบลโคกขาม อ.เมืองสมุทรสาคร จ.สมุทรสาคร 74000"},
+  {code:"073", name:"แม่สอด", name_en:"MAE SOT", name_ko:"매솟", prov:"ตาก", region:"north", lat:16.724709, lng:98.588129, addr:"98/1 ถ.สายเอเชีย ต.แม่สอด อ.แม่สอด จ.ตาก 63110"},
+  {code:"074", name:"ปากช่อง", name_en:"PAK CHONG", name_ko:"빡총", prov:"นครราชสีมา", region:"ne", lat:14.649527, lng:101.408593, addr:"889 หมู่ที่ 8 ต.หนองน้ำแดง อ.ปากช่อง จ.นครราชศรีมา 30130"},
+  {code:"075", name:"ถลาง", name_en:"THALANG", name_ko:"탈랑", prov:"ภูเก็ต", region:"south", lat:8.020144, lng:98.334536, addr:"365 หมู่ที่ 1 ต.เทพกระษัตรี อ.ถลาง จ.ภูเก็ต 83110"},
+  {code:"076", name:"ระนอง", name_en:"RANONG", name_ko:"라농", prov:"ระนอง", region:"south", lat:9.931671, lng:98.634445, addr:"86/9 หมู่ที่ 2 ต.บางริ้น อ.เมืองระนอง จ.ระนอง 85000"},
+  {code:"077", name:"ละไม", name_en:"LAMAI", name_ko:"라마이", prov:"สุราษฎร์ธานี", region:"south", lat:9.457991, lng:100.037683, addr:"199 หมู่ที่ 3 ต.มะเร็ต อ.เกาะสมุย จ.สุราษฎร์ธานี 84310"},
+  {code:"078", name:"กัลปพฤกษ์", name_en:"KANLAPAPHR", name_ko:"깐라파프륵", prov:"กรุงเทพฯ", region:"bkk", lat:13.702643, lng:100.445597, addr:"16/6 หมู่ที่ 8 แขวงบางขุนเทียน เขตจอมทอง จ.กรุงเทพมหานคร 10150"},
+  {code:"079", name:"ยโสธร", name_en:"YASOTHON", name_ko:"야소톤", prov:"ยโสธร", region:"ne", lat:15.773561, lng:104.179555, addr:"324 หมู่ที่2 ต.ตาดทอง อ.เมือง จ.ยโสธร 35000"},
+  {code:"080", name:"มหาสารคาม", name_en:"MAHASARAKK", name_ko:"마하사라캄", prov:"มหาสารคาม", region:"ne", lat:16.211346, lng:103.275141, addr:"253 หมู่ที่ 8 ตำบลเกิ้ง อำเภอเมือง จ.มหาสารคาม 44000"},
+  {code:"081", name:"ฝาง", name_en:"FANG", name_ko:"팡", prov:"เชียงใหม่", region:"north", lat:19.889776, lng:99.195874, addr:"61 หมู่ที่3 ตำบลสันทราย อำเภอฝาง จ.เชียงใหม่ 50110"},
+  {code:"082", name:"นครนายก", name_en:"NAKHONNAYO", name_ko:"나콘나욕", prov:"นครนายก", region:"east", lat:14.226504, lng:101.234162, addr:"176 หมู่ที่5 ตำบลบ้านใหญ่ อำเภอเมือง จ.นครนายก 26000"},
+  {code:"083", name:"นครอินทร์", name_en:"NAKHON IN", name_ko:"나콘인", prov:"นนทบุรี", region:"bkk", lat:13.828612, lng:100.484133, addr:"60 หมู่ที่ 1 ตำบลบางไผ่ อำเภอเมือง จ.นนทบุรี 11000"},
+  {code:"084", name:"บ้านเพ", name_en:"BAN PHE", name_ko:"반페", prov:"ระยอง", region:"east", lat:12.62968, lng:101.443639, addr:"301 หมู่ที่ 2 ตำบลเพ อำเภอเมืองระยอง จ.ระยอง 21160"},
+  {code:"085", name:"ทุ่งสง", name_en:"THUNG SONG", name_ko:"퉁송", prov:"นครศรีธรรมราช", region:"south", lat:8.15818, lng:99.665009, addr:"638 หมู่ที่1 ตำบลชะมาย อำเภอทุ่งสง จ.นครศรีธรรมราช 80110"},
+  {code:"086", name:"ศรีนครินทร์2", name_en:"SRINAKARIN", name_ko:"시나카린", prov:"กรุงเทพฯ", region:"bkk", lat:13.69931, lng:100.646313, addr:"20 ถนนศรีนครินทร์ แขวงหนองบอน เขตประเวศ จ.กรุงเทพฯ 10250"},
+  {code:"087", name:"พะเยา", name_en:"PHAYAO", name_ko:"파야오", prov:"พะเยา", region:"north", lat:19.155165, lng:99.915576, addr:"459/5 ถนนพหลโยธิน ตำบลแม่ต๋ำ อำเภอเมือง พะเยา จ.พะเยา 56000"},
+  {code:"089", name:"พิษณุโลก2", name_en:"PHITSANULO", name_ko:"핏사눌록", prov:"พิษณุโลก", region:"north", lat:16.815944, lng:100.322346, addr:"410/4 หมู่ที่7 ตำบล สมอแข อำเภอเมืองพิษณุโลก จ.พิษณุโลก 65000"},
+  {code:"096", name:"ทาวน์อินทาวน์", name_en:"TOWN INTOW", name_ko:"타운인타운", prov:"กรุงเทพฯ", region:"bkk", lat:13.769935, lng:100.605848, addr:"456/3-6 ซอยลาดพร้าว(ปัญจมิตร) แขวงพลับพลา เขตวังทองหลาง จ.กรุงเทพฯ 10310"},
+  {code:"100", name:"แพร่", name_en:"PHRAE", name_ko:"프래", prov:"แพร่", region:"north", lat:18.117712, lng:100.151001, addr:"204 หมู่ที่ 7 ตำบลนาจักร อำเภอเมืองแพร่ 54000"},
+  {code:"101", name:"เกาะช้าง", name_en:"KOCHANG", name_ko:"코창", prov:"ตราด", region:"east", lat:12.101658, lng:102.274758, addr:"99/30 หมู่ที่4 ตำบลเกาะช้าง อำเภอเกาะช้าง จ.ตราด 23170"},
+  {code:"102", name:"นครราชสีมา2", name_en:"KORAT2", name_ko:"나콘랏차시마", prov:"นครราชสีมา", region:"ne", lat:14.932164, lng:102.136794, addr:"587 หมู่ที่10 ตำบลหนองบัวศาลา อำเภอเมืองนครราชสีมา จ.นครราชสีมา 30000"},
+  {code:"103", name:"น่าน", name_en:"NAN", name_ko:"난", prov:"น่าน", region:"north", lat:18.753947, lng:100.76006, addr:"183 &186 หมู่ที่5 ต.ดู่ใต้ อำเภอเมืองน่าน จังหวัดน่าน 55000"},
+  {code:"104", name:"อ่าวนาง", name_en:"AO NANG", name_ko:"아오낭", prov:"กระบี่", region:"south", lat:8.042077, lng:98.840581, addr:"793 หมู่ที่2 ตำบลอ่าวนาง อำเภอเมืองกระบี่ จ.กระบี่ 81180"},
+  {code:"105", name:"กะรน", name_en:"KARON", name_ko:"까론", prov:"ภูเก็ต", region:"south", lat:7.828427, lng:98.301132, addr:"199/1 ถนนปฏัก ต.กะรน อ.เมืองภูเก็ต จ.ภูเก็ต 83100"},
+  {code:"106", name:"วารินชำราบ", name_en:"WARINCHAMR", name_ko:"와린참랍", prov:"อุบลราชธานี", region:"ne", lat:15.172049, lng:104.855633, addr:"106 หมู่ที่20 ตำบลแสนสุข อำเภอวารินชำราบ จ.อุบลราชธานี 34190"},
+  {code:"107", name:"หนองบัวลำภู", name_en:"Nongbualam", name_ko:"농부아람푸", prov:"หนองบัวลำภู", region:"ne", lat:17.209404, lng:102.434445, addr:"150 หมู่ที่3 ตำบลลำภู อำเภอเมืองหนองบัวลำภู จ.หนองบัวลำภู 39000"},
+  {code:"108", name:"หนองจอก", name_en:"Nongchock", name_ko:"농쪽", prov:"กรุงเทพฯ", region:"bkk", lat:13.856417, lng:100.855231, addr:"80 ถนนเลียบวารี แขวงกระทุ่มราย เขตหนองจอก กรุงเทพฯ 10530"},
+  {code:"109", name:"แหลมฉบัง", name_en:"Laem Chaba", name_ko:"램차방", prov:"ชลบุรี", region:"east", lat:13.080673, lng:100.921212, addr:"1/1 หมู่ 10 ตำบลทุ่งสุขลา อำเภอศรีราชา จ.ชลบุรี 20230"},
+  {code:"110", name:"ประจวบคีรีขันธ์", name_en:"Prachuap", name_ko:"쁘라쭈압키리칸", prov:"ประจวบคีรีขันธ์", region:"west", lat:11.819651, lng:99.782155, addr:"5/1 ถนนเพชรเกษม ตำบลประจวบคีรีขันธ์ อำเภอเมืองประจวบคีรีขันธ์ จ.ประจวบคีรีขันธ์ 77000"},
+  {code:"111", name:"เพชรเกษม", name_en:"Phetkasem", name_ko:"펫까셈", prov:"กรุงเทพฯ", region:"bkk", lat:13.706021, lng:100.382385, addr:"1759/4 ถนนเพชรเกษม แขวงหลักสอง เขตบางแค กรุงเทพฯ 10160"},
+  {code:"113", name:"วังหิน", name_en:"WANG HIN", name_ko:"왕힌", prov:"กรุงเทพฯ", region:"bkk", lat:13.824418, lng:100.592638, addr:"758 & 760 ถนนลาดพร้าววังหิน แขวงลาดพร้าว เขตลาดพร้าว กรุงเทพฯ 10230"},
+  {code:"114", name:"สิงห์บุรี", name_en:"Sing Buri", name_ko:"싱부리", prov:"สิงห์บุรี", region:"central", lat:14.888236, lng:100.429212, addr:"190หมู่ที่7 ตำบลบางงา อำเภอท่าวุ้ง จ.ลพบุรี 15150"},
+  {code:"115", name:"บางบัวทอง", name_en:"Bang Bua T", name_ko:"방부아통", prov:"นนทบุรี", region:"bkk", lat:13.926308, lng:100.409414, addr:"47 หมู่ที่2 ตำบลบางบัวทอง อำเภอบางบัวทอง จ.นนทบุรี 11110"},
+  {code:"116", name:"กาฬสินธุ์", name_en:"KALASIN", name_ko:"깔라신", prov:"กาฬสินธุ์", region:"ne", lat:16.453761, lng:103.531309, addr:"185/2 ถนนเกษตรสมบูรณ์ ตำบลกาฬสินธุ์ อำเภอเมืองกาฬสินธุ์ จ.กาฬสินธุ์ 46000"},
+  {code:"117", name:"อุดมสุข", name_en:"Udom Suk", name_ko:"우돔숙", prov:"กรุงเทพฯ", region:"bkk", lat:13.67843, lng:100.615873, addr:"176 ถนนอุดมสุข แขวงบางนาเหนือ เขตบางนา กรุงเทพมหานคร 10260"},
+  {code:"118", name:"รามคำแหง(สัมมากร)", name_en:"Ramkhamhae", name_ko:"람캄행", prov:"กรุงเทพฯ", region:"bkk", lat:13.776107, lng:100.674504, addr:"94 ถนนรามคำแหง แขวงสะพานสูง เขตสะพานสูง กรุงเทพมหานคร 10240"},
+  {code:"119", name:"พิจิตร", name_en:"PHICHIT", name_ko:"피찟", prov:"พิจิตร", region:"central", lat:16.432191, lng:100.335532, addr:"310 หมู่ที่ 3 ตำบลคลองคะเชนทร์ อำเภอเมือง จ.พิจิตร 66000"},
+  {code:"120", name:"ปทุมธานี", name_en:"PATHUMTHAN", name_ko:"빠툼타니", prov:"ปทุมธานี", region:"bkk", lat:14.031408, lng:100.52316, addr:"9/20 หมู่ที่1 ตำบลบ้านฉาง อำเภอเมืองปทุมธานี จ.ปทุมธานี 12000"},
+  {code:"121", name:"บดินทรเดชา", name_en:"BODINDECHA", name_ko:"보딘데차", prov:"กรุงเทพฯ", region:"bkk", lat:13.77076, lng:100.614399, addr:"361/1 ซอยลาดพร้าว94 (ปัญจมิตร) แขวงพลับพลา เขตวังทองหลาง กรุงเทพมหานคร 10310"},
+  {code:"122", name:"ประชาอุทิศ", name_en:"Pracha Uth", name_ko:"쁘라차우팃", prov:"กรุงเทพฯ", region:"bkk", lat:13.654754, lng:100.499023, addr:"547 ถนนประชาอุทิศ แขวงราษฏร์บูรณะ เขตราษฏร์บูรณะ กรุงเทพมหานคร 10140"},
+  {code:"123", name:"สุขุมวิท71", name_en:"SUKUMVIT71", name_ko:"수쿰윗71", prov:"กรุงเทพฯ", region:"bkk", lat:13.718687, lng:100.595494, addr:"181/2 ถนนสุขุมวิท71 แขวงพระโขนงเหนือ เขตวัฒนา กรุงเทพมหานคร 10110"},
+  {code:"124", name:"นวมินทร์70", name_en:"NAWAMIN 70", name_ko:"나와민70", prov:"กรุงเทพฯ", region:"bkk", lat:13.811579, lng:100.651595, addr:"1106 ถนนนวมินทร์ แขวงคลองกุ่ม เขตบึงกุ่ม กรุงเทพมหานคร 10230"},
+  {code:"125", name:"ชะอำ", name_en:"CHA-AM", name_ko:"차암", prov:"เพชรบุรี", region:"west", lat:12.795198, lng:99.977395, addr:"265 ถนนนราธิป ตำบลชะอำ อำเภอชะอำ จ.เพชรบุรี 76120"},
+  {code:"126", name:"อ่อนนุช", name_en:"ONNUT", name_ko:"온눗", prov:"กรุงเทพฯ", region:"bkk", lat:13.710847, lng:100.611293, addr:"903 ถนนอ่อนนุช แขวงอ่อนนุช เขตสวนหลวง กรุงเทพมหานคร 10250"},
+  {code:"127", name:"สุขสวัสดิ์", name_en:"Suksawat", name_ko:"숙사왓", prov:"กรุงเทพฯ", region:"bkk", lat:13.682132, lng:100.491871, addr:"30/9 ถนนสุขสวัสดิ์ แขวงบางประกอก เขตราษฏร์บูรณะ กรุงเทพมหานคร 10140"},
+  {code:"128", name:"กบินทร์บุรี", name_en:"Kabinburi", name_ko:"까빈부리", prov:"ปราจีนบุรี", region:"east", lat:13.987076, lng:101.76198, addr:"200 หมู่8 ตำบลเมืองเก่า อ.กบินทร์บุรี จ.ปราจีนบุรี 25240"},
+  {code:"129", name:"ลาดกระบัง", name_en:"Ladkrabang", name_ko:"랏끄라방", prov:"กรุงเทพฯ", region:"bkk", lat:13.722427, lng:100.72797, addr:"601 ถนนลาดกระบัง แขวงลาดกระบัง เขตลาดกระบัง กรุงเทพมหานคร 10520"},
+  {code:"130", name:"นาทองเจริญ", name_en:"Nathongcha", name_ko:"나통짜른", prov:"ปทุมธานี", region:"bkk", lat:13.963058, lng:100.642549, addr:"11/28 หมู่ที่6 ตำบลคูคต อำเภอลำลูกกา จ.ปทุมธานี 12130"},
+  {code:"131", name:"บ่อวิน", name_en:"Bo Win", name_ko:"보윈", prov:"ระยอง", region:"east", lat:13.032524, lng:101.097801, addr:"500 หมู่ที่4 ตำบลมาบบางพร อำเภอปลวกแดง จ.ระยอง 21140"},
+  {code:"132", name:"สัตหีบ", name_en:"Sattahip", name_ko:"삿타힙", prov:"ชลบุรี", region:"east", lat:12.699792, lng:100.889798, addr:"88/20 หมู่ที่3 ตำบลสัตหีบ อำเภอสัตหีบ จ.ชลบุรี 20180"},
+  {code:"133", name:"รามคำแหง24", name_en:"RAM24", name_ko:"람캄행24", prov:"กรุงเทพฯ", region:"bkk", lat:13.754872, lng:100.625336, addr:"536/1 ซอยรามคำแหง24 แขวงหัวหมาก เขตบางกะปิ กรุงเทพฯ10240"},
+  {code:"134", name:"อมตะนคร", name_en:"AmataNakon", name_ko:"아마따나콘", prov:"ชลบุรี", region:"east", lat:13.408743, lng:101.045376, addr:"97 หมู่ที่3 ตำบลดอนหัวฬ่อ อำเภอเมืองชลบุรี จ.ชลบุรี 20000"},
+  {code:"135", name:"บางคอแหลม", name_en:"BANGKHOLAE", name_ko:"방콜램", prov:"กรุงเทพฯ", region:"bkk", lat:13.69575, lng:100.495912, addr:"2915 ถนนเจริญกรุง แขวงบางคอแหลม เขตบางคอแหลม กรุงเทพฯ10120"},
+  {code:"136", name:"ขอนแก่น2", name_en:"Khon Kean2", name_ko:"콘깬", prov:"ขอนแก่น", region:"ne", lat:16.427719, lng:102.871128, addr:"235/16 หมู่ที่6 ดำบลในเมือง อำเภอเมืองขอนแก่น จ.ขอนแก่น 40000"},
+  {code:"137", name:"วงศกร2", name_en:"Wongsakorn", name_ko:"웡사꼰2", prov:"กรุงเทพฯ", region:"bkk", lat:13.921596, lng:100.68285, addr:"52 ถนนสายไหม แขวงสายไหม เขตสายไหม กรุงเทพมหานคร 10220"},
+  {code:"138", name:"เหม่งจ๋าย", name_en:"Mengjai", name_ko:"멩짜이", prov:"กรุงเทพฯ", region:"bkk", lat:13.769468, lng:100.589678, addr:"999/248 ถ.ประชาอุทิศ แขวงสามเสนนอก เขตห้วยขวาง กรุงเทพฯ 10310"},
+  {code:"139", name:"สุขุมวิท22", name_en:"SUKUMVIT22", name_ko:"수쿰윗22", prov:"กรุงเทพฯ", region:"bkk", lat:13.731536, lng:100.564871, addr:"34 ซอยสุขุมวิท22 แขวงคลองเตย เขตคลองเตย กรุงเทพมหานคร 10110"},
+  {code:"140", name:"ถนนจันทน์", name_en:"ChanRoad", name_ko:"타논짠", prov:"กรุงเทพฯ", region:"bkk", lat:13.707318, lng:100.522058, addr:"504 ถนนจันทน์ แขวงทุ่งวัดดอน เขตสาทร กรุงเทพมหานคร 10120"},
+  {code:"141", name:"ลำลูกกา", name_en:"Lumlookka", name_ko:"람룩까", prov:"ปทุมธานี", region:"bkk", lat:13.932589, lng:100.656146, addr:"222 หมู่3 ตำบลคูคต อำเภอลำลูกกา จ.ปทุมธานี 12130"},
+  {code:"142", name:"แพรกษา", name_en:"Prakkasa", name_ko:"프랙사", prov:"สมุทรปราการ", region:"bkk", lat:13.582177, lng:100.619979, addr:"959 & 986-989 หมู่2 ตำบลท้ายบ้านใหม่ อำเภอเมืองสมุทรปราการ จ.สมุทรปราการ 10280"},
+  {code:"143", name:"ประดิษฐ์มนูธรรม", name_en:"Praditmano", name_ko:"쁘라딧마누탐", prov:"กรุงเทพฯ", region:"bkk", lat:13.80902, lng:100.618093, addr:"173 ถนนประดิษฐ์มนูธรรม แขวงลาดพร้าวว เขตลาดพร้าว กรุงเทพมหานคร 10230"},
+  {code:"144", name:"ตลาดรุ่งโรจน์(คลอง4)", name_en:"RungrojMa", name_ko:"딸랏룽롯", prov:"ปทุมธานี", region:"bkk", lat:13.991294, lng:100.686326, addr:"111/1330 หมู่ที่1 ต.บึงยี่โถ อ.ธัญบุรี จ.ปทุมธานี 12130"},
+  {code:"145", name:"พงษ์เพชร", name_en:"Pongphet", name_ko:"퐁펫", prov:"กรุงเทพฯ", region:"bkk", lat:13.855762, lng:100.545663, addr:"207/9 ถนนงามวงศ์วาน แขวงทุ่งสองห้อง เขตหลักสี่ กรุงเทพมหานคร 10210"},
+  {code:"146", name:"อุตรดิตถ์", name_en:"Uttaradit", name_ko:"웃따라딧", prov:"อุตรดิตถ์", region:"north", lat:17.614063, lng:100.088311, addr:"187/1-6 & 187/19 ถนนบรมอาสน์ ต. ท่าอิฐ อ.เมืองอุตรดิษถ์ จ.อุตรดิษถ์ 53000"},
+  {code:"147", name:"เมืองทอง", name_en:"MueangThon", name_ko:"므앙통", prov:"นนทบุรี", region:"bkk", lat:13.913645, lng:100.542942, addr:"91/11 หมุ่6 ตำบล บ้านใหม่ อำเภอ ปากเกร็ด จ.นนทบุรี 11120"},
+  {code:"148", name:"เลียบคลอง2", name_en:"LiapKlong2", name_ko:"리압클롱2", prov:"กรุงเทพฯ", region:"bkk", lat:13.860166, lng:100.701174, addr:"165 ถนนเลียบคลองสอง แขวงบางชัน เขตคลองสามวา กรุงเทพมหานคร 10510"},
+  {code:"149", name:"อ้อมน้อย", name_en:"Omnoi", name_ko:"옴노이", prov:"สมุทรสาคร", region:"bkk", lat:13.703831, lng:100.316548, addr:"140 หมู่ 13 ตำบลอ้อมน้อย อำเภอกระทุ่มแบน จ.สมุทรสาคร 74130"},
+  {code:"150", name:"สนามบินน้ำ", name_en:"SanambinNa", name_ko:"사남빈남", prov:"นนทบุรี", region:"bkk", lat:13.881536, lng:100.500323, addr:"339/2 ถนน นนทบุรี ตำบลท่าทราย อำเภอเมืองนนทบุรี จ.นนทบุรี 11000"},
+  {code:"151", name:"เทพรักษ์", name_en:"Thep Rak", name_ko:"텝락", prov:"กรุงเทพฯ", region:"bkk", lat:13.880092, lng:100.626157, addr:"18 ถนนเทพรักษ์ แขวงท่าแร้ง เขตบางเขน กรุงเทพมหานคร 10220"},
+  {code:"152", name:"สมุทรสงคราม", name_en:"Samutsongk", name_ko:"사뭇송크람", prov:"สมุทรสงคราม", region:"bkk", lat:13.404892, lng:100.005834, addr:"7/32 ซอยบางแก้ว ถนนเจริญชมปรีดา ต.แม่กลอง อ.เมืองสมุทรสงคราม จ.สมุทรสงคราม 75000"},
+  {code:"153", name:"เวียงสระ", name_en:"WiangSa", name_ko:"위앙사", prov:"สุราษฎร์ธานี", region:"south", lat:8.633404, lng:99.362479, addr:"146/9 หมู่ที่4 ต.บ้านส้อง อ.เวียงสระ จ.สุราษฏร์ธานี 84190"},
+  {code:"154", name:"ปราจีนบุรี", name_en:"Prachinbur", name_ko:"쁘라찐부리", prov:"ปราจีนบุรี", region:"east", lat:14.056776, lng:101.384351, addr:"บริษัท ซีพี แอ็กซ์ตร้า จำกัด (มหาชน) ปราจีนบุรี243/6 ถนนปราจีนตคำม ตำบลหน้าเมือง อำเภอเมืองปราจีนบุรี จ.ปราจีนบุรี 25000"},
+  {code:"155", name:"ปิ่นเกล้า", name_en:"Pinklao", name_ko:"삔끌라오", prov:"กรุงเทพฯ", region:"bkk", lat:13.782179, lng:100.474436, addr:"บริษัท ซีพี แอ็กซ์ตร้า จำกัด (มหาชน) ปิ่นกล้า 636 ถนนบรมราชชนนี แขวงบางบำหรุ เขตบางพลัด กรุงเทพมหานคร 10700"},
+  {code:"156", name:"สมุทรปราการ", name_en:"Samutpraka", name_ko:"사뭇쁘라깐", prov:"สมุทรปราการ", region:"bkk", lat:13.587892, lng:100.598009, addr:"บริษัท ซีพี แอ็กซ์ตร้า จำกัด (มหาชน) สมุทรปราการ 156/6 ถนนสายลวด ตำบลปากน้ำ อำเภอเมืองสมุทรปราการ จ. สมุทรปราการ 10270"},
+  {code:"157", name:"นครราชสีมา3 (เซฟวัน)", name_en:"Saveone", name_ko:"나콘랏차시마3", prov:"นครราชสีมา", region:"ne", lat:14.957569, lng:102.048473, addr:"บริษัท ซีพี แอ็กซ์ตร้า จำกัด (มหาชน) นครราชสีมา 3 (เซฟวัน) 1475/3 ถนนมิตรภาพ ตำบลในเมือง อำเภอเมืองนครราชสีมา จ. นครราชสีมา 30000"},
+  {code:"158", name:"นครสวรรค์ 2 (พรหมนิมิต)", name_en:"Phromnimit", name_ko:"나콘사완2", prov:"นครสวรรค์", region:"central", lat:15.707856, lng:100.094722, addr:"บริษัท ซีพี แอ็กซ์ตร้า จำกัด (มหาชน) นครสวรรค์ 2 (พรหมนิมิต) 124/12 ม. 10 ต.วัดไทรย์ อ.เมืองสวรรค์ จ.นครสวรรค์ 60000"},
+  {code:"159", name:"อุดรธานี 2 (บ้านเลื่อม)", name_en:"Banlueam", name_ko:"우돈타니2", prov:"อุดรธานี", region:"ne", lat:17.411927, lng:102.764112, addr:"บริษัท ซีพี แอ็กซ์ตร้า จำกัด(มหาชน) อุดรธานี 2 (บ้ำนเลื่อม)315/5 หมู่ที่2 ตำบลบ้านเลื่อม อำเภอเมืองอุดรธานี จ.อุดรธำนี 41000"},
+  {code:"160", name:"มหาชัย", name_en:"Mahachai", name_ko:"마하차이", prov:"สมุทรสาคร", region:"bkk", lat:13.576666, lng:100.272631, addr:"บริษัท ซีพี แอ็กซ์ตร้า จำกัด (มหาชน) มหาชัย 119 หมู่ที่ 7 ตำบลท่าทราย อำเภอเมืองสมุทรสาคร จ.สมุทรสาคร 74000"},
+  {code:"161", name:"ขอนแก่น3 (บ้านโนนม่วง)", name_en:"KhonKaen3", name_ko:"콘깬3", prov:"ขอนแก่น", region:"ne", lat:16.493901, lng:102.832114, addr:"เลขที่ 530 ถ. มิตรภาพ ตำบล ศิลา อำเภอเมืองขอนแก่น ขอนแก่น 40000"},
+  {code:"162", name:"อมตะนคร 2", name_en:"JasAmata2", name_ko:"아마따나콘", prov:"ชลบุรี", region:"east", lat:13.402146, lng:101.034907, addr:"บริษัท ซีพี แอ็กตร้า จำกัด (มหาชน) สาขา อมตะนคร2 98 4 ถ. ศุขประยูร ตำบล นาป่า อำเภอเมืองชลบุรี ชลบุรี 20000"},
+  {code:"163", name:"สงขลา", name_en:"SongKhla", name_ko:"송클라", prov:"สงขลา", region:"south", lat:7.132598, lng:100.582524, addr:"บริษัท ซีพี แอ็กซ์ตร้า จำกัด (มหาชน) สงขลา 651/51 หมู่ที่ 2 ต.พะวง อ.เมืองสงขลา จ.สงขลา 90100"},
+  {code:"164", name:"ชัยนาท", name_en:"Chainat", name_ko:"차이낫", prov:"ชัยนาท", region:"central", lat:15.180893, lng:100.140008, addr:"บริษัท ซีพี แอ็กซ์ตร้า จำกัด (มหาชน) ชัยนาท 1214 หมู่ที่ 4 ต.บ้านกล้วย อ.เมืองชัยนาท จ.ชัยนาท 17000"},
+  {code:"165", name:"ถนนศรีอยุธยา", name_en:"SriAyuthay", name_ko:"시아유타야", prov:"กรุงเทพฯ", region:"bkk", lat:13.756766, lng:100.541487, addr:"บริษัท ซีพี แอ็กซ์ตร้า จำกัด (มหาชน) ถนนศรีอยุธยา 565 ถ.ศรีอยุธยา แขวงถนนพญาไท เขตราชเทวี กรุงเทพฯ 10400"},
+  {code:"166", name:"ราไวย์ 2", name_en:"Rawai2", name_ko:"라와이2", prov:"ภูเก็ต", region:"south", lat:7.796785, lng:98.333232, addr:"บริษัท ซีพี แอ็กซ์ตร้า จำกัด (มหาชน) ราไวย์ 2 101/77 หมู่ 7 ต.ราไวย์ อ.เมืองภูเก็ต จ.ภูเก็ต 83130"},
+  {code:"167", name:"เชียงใหม่ (จอมทอง)", name_en:"Chom Thong", name_ko:"치앙마이", prov:"เชียงใหม่", region:"north", lat:18.430659, lng:98.681427, addr:"บริษัท ซีพี แอ็กซ์ตร้า จำกัด (มหาชน) เชียงใหม่ (จอมทอง) เลขที่ 101 หมู่ที่ 11 ต.ข่วงเปา อ.จอมทอง จ.เชียงใหม่ 50160"},
+  {code:"168", name:"บ้านบึง (ชลบุรี)", name_en:"BanBueng", name_ko:"반븡", prov:"ชลบุรี", region:"east", lat:13.304656, lng:101.124498, addr:"บริษัท ซีพี แอ็กซ์ตร้า จำกัด(มหาชน) บ้านบึง 411 ถ.บ้านบึง-แกลง ต.บ้านบึง อ.บ้านบึง จ.ชลบุรี 20170"},
+  {code:"169", name:"พังงา", name_en:"Phangnga", name_ko:"팡응아", prov:"พังงา", region:"south", lat:8.864127, lng:98.326414, addr:"บริษัท ซีพี แอ็กซ์ตร้า จำกัด(มหาชน) 1/74 หมู่ที่ 7 ต.บางนายสี อ.ตะกั่วป่า จ.พังงา 20170"},
+  {code:"170", name:"อำนาจเจริญ", name_en:"AmnatCharo", name_ko:"암낫짜른", prov:"อำนาจเจริญ", region:"ne", lat:15.88456, lng:104.6223, addr:"บริษัท ซีพี แอ็กซ์ตร้า จำกัด(มหาชน) อำนาจเจริญ 688 หมู่ที่ 8 ต.บุ่ง อ.เมืองอำนาจเจริญ จ.อำนาจเจริญ 37000"},
+  {code:"171", name:"จอหอ (นครราชสีมา)", name_en:"JoHo", name_ko:"쩌허", prov:"นครราชสีมา", region:"ne", lat:15.031047, lng:102.137261, addr:"บริษัท ซีพี แอ็กซ์ตร้า จำกัด(มหาชน) 996 หมู่ 3 ต.จอหอ อ.เมืองนครราชสีมา จ.นครราชสีมา 30310"},
+  {code:"172", name:"บ้านไผ่", name_en:"Bannpahi", name_ko:"반파이", prov:"ขอนแก่น", region:"ne", lat:16.046982, lng:102.716418, addr:"บมจ.ซีพี แอ็กซ์ตร้า สาขาบ้านไผ่ เลขที่ 39/14 หมู่ที่ 2 ถ.มิตรภาพ ต.บ้านไผ่ อ.บ้านไผ่ จ.ขอนแก่น 40110"},
+  {code:"301", name:"พระราม4", name_en:"Rama 4", name_ko:"라마4", prov:"กรุงเทพฯ", region:"bkk", lat:13.716808, lng:100.57101, addr:"3654 1 Rama IV Rd Khlong Tan Khlong Toei Bangkok 10110"},
+  {code:"303", name:"ศิริมังคลาจารย์", name_en:"Siri Mangkhalachan", name_ko:"시리망클라짠", prov:"เชียงใหม่", region:"north", lat:18.795517, lng:98.970823, addr:"63 Siri Mangkalajarn Rd Suthep Mueang Chiang Mai District Chiang Mai 50200"},
+  {code:"350", name:"รามอินทรา กม.4", name_en:"Ram Inthra KM.4", name_ko:"람인트라4", prov:"กรุงเทพฯ", region:"bkk", lat:13.856429, lng:100.629231, addr:"248 Ram Inthra Rd Tha Raeng Bang Khen Bangkok 10220"},
+  {code:"351", name:"ซิโนพาร์ค", name_en:"Sino Park", name_ko:"시노파크", prov:"สมุทรปราการ", region:"bkk", lat:13.564149, lng:100.692732, addr:"915 Phraeksa Mueang Samut Prakan District Samut Prakan 10280"},
+  {code:"352", name:"พัฒนาการ", name_en:"Phatthanakan", name_ko:"팟타나깐", prov:"กรุงเทพฯ", region:"bkk", lat:13.723625, lng:100.658667, addr:"321/2-3 Phatthanakan Rd Prawet Bangkok 10250"},
+];
+
+/* ============================================================
+   STATE
+============================================================ */
+let DATA=JSON.parse(JSON.stringify(DEFAULT_BRANCHES));
+let RECORDS=[];           // saved distance logs
+let activeRegion='all',searchTerm='',currentPane='map';
+let fbReady=false,db=null;
+
+/* ============================================================
+   LOGIN
+============================================================ */
+function showApp(){document.getElementById('loginOverlay').classList.add('hide');setTimeout(()=>map.invalidateSize(),100);}
+function doLogin(){
+  const u=document.getElementById('loginUser').value.trim();
+  const p=document.getElementById('loginPass').value;
+  if(u===AUTH_USER&&p===AUTH_PASS){
+    document.getElementById('loginErr').textContent='';
+    document.getElementById('userName').textContent=u;
+    document.getElementById('userAv').textContent=u.charAt(0).toUpperCase();
+    showApp();
+  }else{
+    document.getElementById('loginErr').textContent=t('loginErr');
+  }
+}
+document.getElementById('loginBtn').onclick=doLogin;
+document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+document.getElementById('loginUser').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass').focus();});
+document.getElementById('logoutBtn').onclick=()=>{location.reload();};
+
+/* ============================================================
+   MAP
+============================================================ */
+const map=L.map('map',{zoomControl:false,attributionControl:false}).setView([13.2,100.9],6);
+L.control.zoom({position:'bottomright'}).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19,subdomains:'abcd'}).addTo(map);
+
+let legendCtl;
+function addLegend(){
+  if(legendCtl)map.removeControl(legendCtl);
+  const Legend=L.Control.extend({options:{position:'bottomleft'},onAdd:function(){
+    const d=L.DomUtil.create('div','legend');let h=`<div class="lt">${t('legendT')}</div>`;
+    for(const k of Object.keys(REGIONS))h+=`<div class="li"><span class="d" style="background:${REGIONS[k].color}"></span>${regName(k)}</div>`;
+    d.innerHTML=h;L.DomEvent.disableClickPropagation(d);return d;
+  }});legendCtl=new Legend();map.addControl(legendCtl);
+}
+let markers={};
+function pinSVG(c){return `<svg width="26" height="34" viewBox="0 0 26 34"><path d="M13 0C5.8 0 0 5.8 0 13c0 9.5 13 21 13 21s13-11.5 13-21C26 5.8 20.2 0 13 0z" fill="${c}"/><circle cx="13" cy="13" r="5" fill="#fff"/></svg>`;}
+function markerHTML(b){
+  const col=(REGIONS[b.region]||{}).color||'#e2231a';
+  const seq=routeStops.indexOf(b.code);
+  const sb=seq>=0?`<div class="mk-seq">${seq+1}</div>`:'';
+  return `<div class="mk-wrap" style="position:relative"><div class="mk-label"><span class="lb-code">${b.code}</span>${bName(b)}</div><div class="mk-pin">${pinSVG(col)}</div>${sb}</div>`;
+}
+function buildMarkers(){
+  Object.values(markers).forEach(m=>map.removeLayer(m));markers={};
+  DATA.forEach(b=>{
+    const icon=L.divIcon({className:'',html:markerHTML(b),iconSize:[120,52],iconAnchor:[13,52]});
+    const m=L.marker([b.lat,b.lng],{icon}).addTo(map);
+    m.bindPopup(popupHTML(b),{closeButton:true});
+    m.on('click',()=>onMarkerClick(b));markers[b.code]=m;
+  });
+}
+function refreshMarker(code){
+  const b=DATA.find(x=>x.code===code);if(!b||!markers[code])return;
+  markers[code].setIcon(L.divIcon({className:'',html:markerHTML(b),iconSize:[120,52],iconAnchor:[13,52]}));
+}
+function popupHTML(b){
+  return `<div><div class="pop-name">${t('branchOf')} ${bName(b)}</div>
+    <div class="pop-meta">${t('code')} ${b.code} · ${b.prov||''} · ${regName(b.region)}</div>
+    ${b.addr?`<div class="pop-addr">📍 ${b.addr}</div>`:''}
+    <div class="pop-coord mono">◉ ${(+b.lat).toFixed(5)}, ${(+b.lng).toFixed(5)}</div>
+    <div class="pop-btns">
+      <button onclick="setRoutePoint('${b.code}','a')">${t('setA')}</button>
+      <button onclick="setRoutePoint('${b.code}','b')">${t('setB')}</button>
+      <button onclick="addStop('${b.code}')">${t('addRoute')}</button>
+      <button class="gd" onclick="openGmap(${b.lat},${b.lng})">${t('nav')}</button>
+    </div></div>`;
+}
+function onMarkerClick(b){if(currentPane==='route'){addStop(b.code);return;}if(routeMode){handleRoutePick(b);}}
+
+/* ============================================================
+   FILTER + LIST
+============================================================ */
+function getFiltered(){
+  return DATA.filter(b=>{
+    const okR=activeRegion==='all'||b.region===activeRegion;
+    const term=searchTerm.trim().toLowerCase();
+    const okS=!term||bName(b).toLowerCase().includes(term)||b.name.toLowerCase().includes(term)||
+      (b.name_en||'').toLowerCase().includes(term)||(b.prov||'').toLowerCase().includes(term)||
+      (b.addr||'').toLowerCase().includes(term)||(b.code||'').toLowerCase().includes(term);
+    return okR&&okS;});
+}
+function renderRegions(){
+  const wrap=document.getElementById('regions');
+  let html=`<div class="chip ${activeRegion==='all'?'active':''}" data-r="all" style="${activeRegion==='all'?'background:#1b2230':''}"><span class="cdot" style="background:#1b2230"></span>${t('all')}</div>`;
+  for(const k of Object.keys(REGIONS)){const act=activeRegion===k;
+    html+=`<div class="chip ${act?'active':''}" data-r="${k}" style="${act?'background:'+REGIONS[k].color:''}"><span class="cdot" style="background:${REGIONS[k].color}"></span>${regName(k)}</div>`;}
+  wrap.innerHTML=html;
+  wrap.querySelectorAll('.chip').forEach(c=>{c.onclick=()=>{activeRegion=c.dataset.r;renderRegions();renderList();if(activeRegion!=='all')zoomToRegion(activeRegion);};});
+}
+function renderList(){
+  const fil=getFiltered();
+  DATA.forEach(b=>{const show=fil.includes(b),el=markers[b.code]&&markers[b.code].getElement();if(el)el.style.display=show?'':'none';});
+  const list=document.getElementById('list');
+  list.innerHTML=fil.map(b=>{
+    const reg=REGIONS[b.region]||{color:'#999'};
+    const pick=(routeA&&routeA.code===b.code)||(routeB&&routeB.code===b.code);
+    const inR=routeStops.includes(b.code);
+    return `<div class="branch ${pick?'routing-pick':''} ${inR?'in-route':''}" data-c="${b.code}" style="--bcol:${reg.color}">
+      <div class="seq">${inR?routeStops.indexOf(b.code)+1:''}</div>
+      <div class="bn"><span>${bName(b)}</span><span class="code mono">${b.code}</span></div>
+      <div class="bp">📍 ${b.prov?b.prov:regName(b.region)}</div>
+      <span class="reg-tag" style="background:${reg.color}1a;color:${reg.color}">${regName(b.region)}</span>
+    </div>`;
+  }).join('')||`<div style="color:var(--txt-dim);text-align:center;padding:36px;font-size:13px">${t('notFound')}</div>`;
+  list.querySelectorAll('.branch').forEach(el=>{el.onclick=()=>{
+    const b=DATA.find(x=>x.code===el.dataset.c);
+    if(currentPane==='route'){addStop(b.code);return;}
+    if(routeMode){handleRoutePick(b);return;}
+    map.flyTo([b.lat,b.lng],13,{duration:.8});markers[b.code].openPopup();closeMobile();};});
+}
+function zoomToRegion(r){const pts=DATA.filter(b=>b.region===r).map(b=>[b.lat,b.lng]);if(pts.length)map.flyToBounds(L.latLngBounds(pts).pad(.15),{duration:.7});}
+document.getElementById('search').addEventListener('input',e=>{searchTerm=e.target.value;renderList();});
+
+function haversine(a,b){const R=6371,r=x=>x*Math.PI/180;const dLat=r(b.lat-a.lat),dLng=r(b.lng-a.lng);
+  const s=Math.sin(dLat/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLng/2)**2;return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));}
+
+/* ============================================================
+   2-POINT MEASURE
+============================================================ */
+let routeMode=false,routeA=null,routeB=null,routeLine=null;
+window.setRoutePoint=(code,which)=>{const b=DATA.find(x=>x.code===code);if(which==='a')routeA=b;else routeB=b;map.closePopup();updateRoute();};
+function handleRoutePick(b){if(!routeA||(routeA&&routeB)){routeA=b;routeB=null;}else if(!routeB){routeB=b;}updateRoute();}
+function updateRoute(){
+  document.getElementById('routebar').classList.remove('hidden');
+  const aEl=document.getElementById('rbA'),bEl=document.getElementById('rbB');
+  if(routeA){aEl.textContent=`${t('branchOf')} ${bName(routeA)}`;aEl.classList.remove('empty');}else{aEl.textContent=t('pickA');aEl.classList.add('empty');}
+  if(routeB){bEl.textContent=`${t('branchOf')} ${bName(routeB)}`;bEl.classList.remove('empty');}else{bEl.textContent=t('pickB');bEl.classList.add('empty');}
+  if(routeLine){map.removeLayer(routeLine);routeLine=null;}
+  if(routeA&&routeB){
+    document.getElementById('rbKm').textContent=haversine(routeA,routeB).toFixed(1);
+    document.getElementById('rbStraight').textContent=t('straight');
+    routeLine=L.polyline([[routeA.lat,routeA.lng],[routeB.lat,routeB.lng]],{color:'#d99a00',weight:3,dashArray:'8 9',opacity:.95}).addTo(map);
+    map.fitBounds(routeLine.getBounds(),{padding:[90,90]});
+  }else{document.getElementById('rbKm').textContent='—';document.getElementById('rbStraight').textContent='';}
+  renderList();
+}
+window.openGmap=(lat,lng)=>window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,'_blank');
+document.getElementById('rbClear').onclick=()=>{routeA=routeB=null;if(routeLine){map.removeLayer(routeLine);routeLine=null;}updateRoute();};
+document.getElementById('rbGmap').onclick=()=>{if(routeA&&routeB)window.open(`https://www.google.com/maps/dir/?api=1&origin=${routeA.lat},${routeA.lng}&destination=${routeB.lat},${routeB.lng}`,'_blank');else if(routeA)openGmap(routeA.lat,routeA.lng);};
+document.getElementById('rbSave').onclick=()=>{
+  if(routeA&&routeB){saveRecord([routeA.code,routeB.code]);flash(document.getElementById('rbSave'));}
+};
+
+let routeCtl;
+function addRouteCtl(){
+  if(routeCtl)map.removeControl(routeCtl);
+  const RC=L.Control.extend({options:{position:'topright'},onAdd:function(){
+    const d=L.DomUtil.create('div');
+    d.innerHTML=`<button id="routeToggle" style="font-family:'IBM Plex Sans Thai','Noto Sans KR',sans-serif;font-size:13px;font-weight:600;padding:11px 15px;border-radius:12px;border:1px solid #e6eaf1;background:#fff;color:#1b2230;cursor:pointer;box-shadow:0 6px 18px rgba(20,30,55,.12)">${t('measureBtn')}</button>`;
+    L.DomEvent.disableClickPropagation(d);d.querySelector('button').onclick=toggleRouteMode;return d;
+  }});routeCtl=new RC();map.addControl(routeCtl);
+}
+function toggleRouteMode(){
+  routeMode=!routeMode;
+  const btn=document.getElementById('routeToggle'),hint=document.getElementById('routeHint');
+  if(routeMode){btn.style.background='#e2231a';btn.style.borderColor='#e2231a';btn.style.color='#fff';btn.textContent=t('measuring');hint.classList.remove('hidden');document.getElementById('routebar').classList.remove('hidden');}
+  else{btn.style.background='#fff';btn.style.borderColor='#e6eaf1';btn.style.color='#1b2230';btn.textContent=t('measureBtn');hint.classList.add('hidden');}
+}
+function flash(btn){const o=btn.textContent;btn.textContent=t('saved');setTimeout(()=>btn.textContent=o,1400);}
+
+/* ============================================================
+   MULTI-STOP ROUTE
+============================================================ */
+let routeStops=[],routeLines=[];
+window.addStop=(code)=>{if(routeStops.includes(code))return;routeStops.push(code);refreshMarker(code);drawRoutePlan();renderRoutePlan();renderList();map.closePopup();};
+function removeStop(code){routeStops=routeStops.filter(c=>c!==code);refreshMarker(code);routeStops.forEach(refreshMarker);drawRoutePlan();renderRoutePlan();renderList();}
+window.removeStop=removeStop;
+function drawRoutePlan(){
+  routeLines.forEach(l=>map.removeLayer(l));routeLines=[];
+  for(let i=0;i<routeStops.length-1;i++){
+    const a=DATA.find(x=>x.code===routeStops[i]),b=DATA.find(x=>x.code===routeStops[i+1]);if(!a||!b)continue;
+    const km=haversine(a,b),mid=[(a.lat+b.lat)/2,(a.lng+b.lng)/2];
+    const line=L.polyline([[a.lat,a.lng],[b.lat,b.lng]],{color:'#d99a00',weight:3.5,opacity:.9}).addTo(map);
+    line.bindTooltip(L.tooltip({permanent:true,direction:'center',className:'leg-tip'}).setLatLng(mid)
+      .setContent(`<span style="background:#d99a00;color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;box-shadow:0 2px 5px rgba(0,0,0,.25)">${km.toFixed(1)} ${t('km')}</span>`)).openTooltip();
+    routeLines.push(line);
+  }
+  if(routeStops.length>=2){const pts=routeStops.map(c=>{const b=DATA.find(x=>x.code===c);return[b.lat,b.lng];});map.flyToBounds(L.latLngBounds(pts).pad(.2),{duration:.6});}
+}
+function routeTotalKm(){let tot=0;for(let i=0;i<routeStops.length-1;i++){const a=DATA.find(x=>x.code===routeStops[i]),b=DATA.find(x=>x.code===routeStops[i+1]);if(a&&b)tot+=haversine(a,b);}return tot;}
+function renderRoutePlan(){
+  const totalEl=document.getElementById('rpTotal'),legsEl=document.getElementById('rpLegs'),listEl=document.getElementById('rpList');
+  const saveCur=document.getElementById('saveCur');
+  if(routeStops.length===0){listEl.innerHTML=`<div class="rp-empty">${t('routeEmpty')}</div>`;totalEl.textContent='0';legsEl.textContent='';document.getElementById('rpGmap').disabled=true;saveCur.classList.add('hide');return;}
+  let total=0,html='';
+  routeStops.forEach((code,i)=>{
+    const b=DATA.find(x=>x.code===code);if(!b)return;
+    html+=`<div class="rp-stop"><div class="num">${i+1}</div><div class="info"><div class="nm">${bName(b)}</div><div class="pv">${t('code')} ${b.code} · ${regName(b.region)}</div></div><button class="rm" onclick="removeStop('${code}')">✕</button></div>`;
+    if(i<routeStops.length-1){const nx=DATA.find(x=>x.code===routeStops[i+1]);const km=haversine(b,nx);total+=km;html+=`<div class="rp-leg">↓ ${km.toFixed(1)} ${t('km')}</div>`;}
+  });
+  listEl.innerHTML=html;totalEl.textContent=total.toFixed(1);
+  legsEl.textContent=`${routeStops.length} ${t('stops')}`;
+  document.getElementById('rpGmap').disabled=routeStops.length<2;
+  if(routeStops.length>=2){saveCur.classList.remove('hide');
+    document.getElementById('saveCurTxt').innerHTML=`${t('curRoute')}: <b>${total.toFixed(1)} ${t('km')}</b> · ${routeStops.length} ${t('stops')}`;}
+  else saveCur.classList.add('hide');
+}
+document.getElementById('rpClear').onclick=()=>{const old=[...routeStops];routeStops=[];old.forEach(refreshMarker);drawRoutePlan();renderRoutePlan();renderList();};
+document.getElementById('rpGmap').onclick=()=>{if(routeStops.length<2)return;
+  const pts=routeStops.map(c=>{const b=DATA.find(x=>x.code===c);return `${b.lat},${b.lng}`;});
+  let url=`https://www.google.com/maps/dir/?api=1&origin=${pts[0]}&destination=${pts[pts.length-1]}`;
+  const way=pts.slice(1,-1).join('|');if(way)url+=`&waypoints=${way}`;window.open(url,'_blank');};
+document.getElementById('saveCurBtn').onclick=()=>{if(routeStops.length>=2){saveRecord([...routeStops]);flash(document.getElementById('saveCurBtn'));}};
+
+/* ============================================================
+   SAVED RECORDS (with Firebase)
+============================================================ */
+function saveRecord(codes){
+  const stops=codes.map(c=>{const b=DATA.find(x=>x.code===c);return{code:c,name:b?b.name:c,prov:b?b.prov:'',addr:b?b.addr:''};});
+  let total=0,legs=[];
+  for(let i=0;i<codes.length-1;i++){const a=DATA.find(x=>x.code===codes[i]),b=DATA.find(x=>x.code===codes[i+1]);
+    if(a&&b){const km=haversine(a,b);total+=km;legs.push({from:a.name,to:b.name,km:+km.toFixed(2)});}}
+  const rec={id:'rec_'+Date.now()+'_'+Math.floor(Math.random()*1000),
+    ts:Date.now(),stops,legs,totalKm:+total.toFixed(2),note:'',by:document.getElementById('userName').textContent};
+  RECORDS.unshift(rec);
+  persistRecords();renderSaved();
+}
+function persistRecords(){
+  if(fbReady&&db){db.ref(DB_RECORDS).set(RECORDS).catch(e=>console.warn(e));}
+  else ls_set('makro_records',JSON.stringify(RECORDS));
+}
+function loadLocalRecords(){try{const r=JSON.parse(ls_get('makro_records','[]'));if(Array.isArray(r))RECORDS=r;}catch(e){}}
+function fmtDate(ts){const d=new Date(ts);const p=n=>String(n).padStart(2,'0');return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;}
+function renderSaved(){
+  document.getElementById('savedCnt').textContent=`${RECORDS.length} ${t('records')}`;
+  document.getElementById('exportBtn').disabled=RECORDS.length===0;
+  const list=document.getElementById('savedList');
+  if(RECORDS.length===0){list.innerHTML=`<div class="saved-empty">${t('savedEmpty')}</div>`;return;}
+  list.innerHTML=RECORDS.map(r=>{
+    const path=r.stops.map(s=>{const b=DATA.find(x=>x.code===s.code);return b?bName(b):s.name;}).join(' → ');
+    return `<div class="rec">
+      <div class="rt"><span>${path}</span><span class="km">${r.totalKm.toFixed(1)} ${t('km')}</span></div>
+      <div class="rmeta">🕒 ${fmtDate(r.ts)} · 👤 ${r.by||'admin'}${r.note?' · 📝 '+r.note:''}</div>
+      <div class="ops"><button class="ed" onclick="editRecord('${r.id}')">✏️ ${t('edit')}</button><button class="dl" onclick="delRecord('${r.id}')">🗑️ ${t('del')}</button></div>
+    </div>`;
+  }).join('');
+}
+window.delRecord=(id)=>{if(!confirm(t('confirmDel')))return;RECORDS=RECORDS.filter(r=>r.id!==id);persistRecords();renderSaved();};
+let editingId=null;
+window.editRecord=(id)=>{editingId=id;const r=RECORDS.find(x=>x.id===id);document.getElementById('editNote').value=r.note||'';document.getElementById('editModal').classList.add('show');};
+document.getElementById('editCancel').onclick=()=>{document.getElementById('editModal').classList.remove('show');editingId=null;};
+document.getElementById('editSave').onclick=()=>{const r=RECORDS.find(x=>x.id===editingId);if(r){r.note=document.getElementById('editNote').value.trim();persistRecords();renderSaved();}document.getElementById('editModal').classList.remove('show');editingId=null;};
+
+/* EXPORT EXCEL */
+document.getElementById('exportBtn').onclick=()=>{
+  if(RECORDS.length===0)return;
+  const sum=RECORDS.map((r,i)=>({
+    'ลำดับ':i+1,
+    'วันที่บันทึก':fmtDate(r.ts),
+    'เส้นทาง':r.stops.map(s=>s.name).join(' → '),
+    'จุดเริ่มต้น':r.stops[0]?r.stops[0].name:'',
+    'จุดสิ้นสุด':r.stops[r.stops.length-1]?r.stops[r.stops.length-1].name:'',
+    'จำนวนจุด':r.stops.length,
+    'ระยะทางรวม (กม.)':r.totalKm,
+    'หมายเหตุ':r.note||'',
+    'ผู้บันทึก':r.by||'admin'
+  }));
+  const legs=[];
+  RECORDS.forEach((r,i)=>{r.legs.forEach((l,j)=>{legs.push({
+    'รหัสบันทึก':i+1,'วันที่':fmtDate(r.ts),'ช่วงที่':j+1,'จาก':l.from,'ไป':l.to,'ระยะ (กม.)':l.km
+  });});});
+  const wb=XLSX.utils.book_new();
+  const ws1=XLSX.utils.json_to_sheet(sum);
+  ws1['!cols']=[{wch:6},{wch:18},{wch:50},{wch:22},{wch:22},{wch:10},{wch:16},{wch:25},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,ws1,'สรุประยะทาง');
+  const ws2=XLSX.utils.json_to_sheet(legs);
+  ws2['!cols']=[{wch:10},{wch:18},{wch:8},{wch:28},{wch:28},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,ws2,'รายละเอียดแต่ละช่วง');
+  // ชีตรายชื่อสาขาทั้งหมด (อ้างอิง)
+  const blist=DATA.map(b=>({'รหัส':b.code,'ชื่อสาขา':b.name,'ชื่อ (EN)':b.name_en,'จังหวัด':b.prov||'','ภูมิภาค':regName(b.region),'LATITUDE':b.lat,'LONGITUDE':b.lng,'ที่อยู่':b.addr||''}));
+  const ws3=XLSX.utils.json_to_sheet(blist);
+  ws3['!cols']=[{wch:8},{wch:24},{wch:24},{wch:16},{wch:18},{wch:12},{wch:12},{wch:55}];
+  XLSX.utils.book_append_sheet(wb,ws3,'รายชื่อสาขาทั้งหมด');
+  const d=new Date();const fn=`MAKRO_Distance_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.xlsx`;
+  XLSX.writeFile(wb,fn);
+};
+
+/* ============================================================
+   SUMMARY
+============================================================ */
+function renderSummary(){
+  const total=DATA.length;
+  const provs=new Set(DATA.map(b=>b.prov).filter(Boolean)).size;
+  const regCount={};Object.keys(REGIONS).forEach(k=>regCount[k]=0);
+  DATA.forEach(b=>{if(regCount[b.region]!=null)regCount[b.region]++;});
+  const maxReg=Math.max(...Object.values(regCount),1);
+  const avgSaved=RECORDS.length?(RECORDS.reduce((s,r)=>s+r.totalKm,0)/RECORDS.length):0;
+  let h=`<div class="kpis">
+    <div class="kpi red"><div class="v">${total}</div><div class="l">${t('kpiTotal')}</div></div>
+    <div class="kpi blue"><div class="v">${provs}</div><div class="l">${t('kpiProv')}</div></div>
+    <div class="kpi gold"><div class="v">${RECORDS.length}</div><div class="l">${t('kpiSaved')}</div></div>
+    <div class="kpi green"><div class="v">${avgSaved.toFixed(0)}</div><div class="l">${t('kpiAvg')} (${t('km')})</div></div>
+  </div><div class="sum-sec"><h3>${t('byRegion')}</h3>`;
+  for(const k of Object.keys(REGIONS)){const c=regCount[k];
+    h+=`<div class="bar-row" data-reg="${k}"><div class="bar-label"><span>${regName(k)}</span><span class="n">${c} ${t('branches')}</span></div><div class="bar-track"><div class="bar-fill" style="width:${c/maxReg*100}%;background:${REGIONS[k].color}"></div></div></div>`;}
+  h+=`</div><button class="print-btn" onclick="window.print()">${t('print')}</button>`;
+  document.getElementById('summary').innerHTML=h;
+  document.querySelectorAll('.bar-row[data-reg]').forEach(r=>{r.onclick=()=>{switchPane('map');activeRegion=r.dataset.reg;renderRegions();renderList();zoomToRegion(r.dataset.reg);closeMobile();};});
+}
+
+/* ============================================================
+   NAV
+============================================================ */
+function switchPane(p){
+  currentPane=p;
+  document.getElementById('paneMap').classList.toggle('hide',p!=='map');
+  document.getElementById('paneRoute').classList.toggle('hide',p!=='route');
+  document.getElementById('paneSaved').classList.toggle('hide',p!=='saved');
+  document.getElementById('paneSum').classList.toggle('hide',p!=='sum');
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.pane===p));
+  if(p==='sum')renderSummary();if(p==='route')renderRoutePlan();if(p==='saved')renderSaved();
+}
+document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>switchPane(b.dataset.pane));
+const sidebar=document.getElementById('sidebar'),scrim=document.getElementById('scrim');
+document.getElementById('mtoggle').onclick=()=>{sidebar.classList.add('open');scrim.classList.add('show');};
+function closeMobile(){sidebar.classList.remove('open');scrim.classList.remove('show');}
+scrim.onclick=closeMobile;
+
+/* ============================================================
+   LANGUAGE
+============================================================ */
+function applyI18nStatic(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>el.textContent=t(el.dataset.i18n));
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>el.placeholder=t(el.dataset.i18nPh));
+  document.documentElement.lang=LANG;
+}
+function setLang(l){
+  LANG=l;ls_set('makro_lang',l);
+  document.querySelectorAll('#langSw button,#loginLang button').forEach(b=>b.classList.toggle('active',b.dataset.lang===l));
+  applyI18nStatic();addLegend();addRouteCtl();
+  renderRegions();buildMarkers();renderList();renderRoutePlan();renderSaved();
+  if(currentPane==='sum')renderSummary();
+  const on=document.getElementById('syncBadge').classList.contains('on');
+  setSync(on,on?t('online'):t('offline'));
+}
+document.querySelectorAll('#langSw button,#loginLang button').forEach(b=>b.onclick=()=>setLang(b.dataset.lang));
+
+/* ============================================================
+   FIREBASE
+============================================================ */
+function setSync(on,txt){const b=document.getElementById('syncBadge');b.classList.toggle('on',on);document.getElementById('syncTxt').textContent=txt;}
+function initFirebase(){
+  if(FIREBASE_CONFIG.apiKey==="YOUR_API_KEY"){setSync(false,t('offline'));loadLocalRecords();renderSaved();return;}
+  try{
+    firebase.initializeApp(FIREBASE_CONFIG);db=firebase.database();fbReady=true;
+    db.ref(DB_BRANCHES).on('value',snap=>{
+      const v=snap.val();
+      if(v&&Array.isArray(v)&&v.length)DATA=v;
+      else if(v&&typeof v==='object')DATA=Object.values(v);
+      else{db.ref(DB_BRANCHES).set(DEFAULT_BRANCHES);DATA=JSON.parse(JSON.stringify(DEFAULT_BRANCHES));}
+      setSync(true,t('online'));buildMarkers();renderList();if(currentPane==='sum')renderSummary();
+    },e=>{console.warn(e);setSync(false,t('offErr'));});
+    db.ref(DB_RECORDS).on('value',snap=>{
+      const v=snap.val();RECORDS=v&&Array.isArray(v)?v:(v&&typeof v==='object'?Object.values(v):[]);
+      RECORDS.sort((a,b)=>b.ts-a.ts);renderSaved();if(currentPane==='sum')renderSummary();
+    });
+  }catch(e){console.warn(e);setSync(false,t('offErr'));loadLocalRecords();renderSaved();}
+}
+
+/* ============================================================
+   BOOT
+============================================================ */
+applyI18nStatic();
+document.querySelectorAll('#langSw button,#loginLang button').forEach(b=>b.classList.toggle('active',b.dataset.lang===LANG));
+addLegend();addRouteCtl();renderRegions();buildMarkers();renderList();
+loadLocalRecords();renderSaved();
+initFirebase();
+/* แสดงหน้า login เสมอเมื่อเปิด/รีเฟรชแอป — ต้องกรอก user/password ทุกครั้ง */
+document.getElementById('loginUser').focus();
+</script>
+</body>
+</html>
