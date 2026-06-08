@@ -107,6 +107,10 @@ button{font-family:inherit}
 #routebar.hidden{opacity:0;transform:translateY(-12px);pointer-events:none}
 .rb-title{font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:var(--accent);font-weight:700;
   margin-bottom:13px;display:flex;align-items:center;gap:7px}
+.rb-close{margin-left:auto;border:none;background:var(--surface-2);color:var(--txt-dim);width:24px;height:24px;
+  border-radius:7px;cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;
+  transition:.15s;flex-shrink:0}
+.rb-close:hover{background:var(--accent);color:#fff}
 .rb-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;background:var(--surface-2);padding:9px 11px;border-radius:var(--r-xs)}
 .rb-row .dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
 .rb-row .dot.a{background:var(--gold)}.rb-row .dot.b{background:var(--accent)}
@@ -366,7 +370,7 @@ button{font-family:inherit}
   <div id="map"></div>
 
   <div id="routebar" class="hidden">
-    <div class="rb-title">📏 <span data-i18n="measure">วัดระยะ 2 จุด</span></div>
+    <div class="rb-title">📏 <span data-i18n="measure">วัดระยะ 2 จุด</span><button id="rbClose" class="rb-close" aria-label="close">✕</button></div>
     <div class="rb-row"><span class="dot a"></span><span class="val empty" id="rbA" data-i18n="pickA">เลือกจุดต้นทาง</span></div>
     <div class="rb-row"><span class="dot b"></span><span class="val empty" id="rbB" data-i18n="pickB">เลือกจุดปลายทาง</span></div>
     <div class="rb-dist"><span class="km" id="rbKm">—</span><span class="u" data-i18n="km">กม.</span><span class="straight" id="rbStraight"></span></div>
@@ -810,6 +814,16 @@ document.getElementById('rbGmap').onclick=()=>{if(routeA&&routeB)window.open(`ht
 document.getElementById('rbSave').onclick=()=>{
   if(routeA&&routeB){saveRecord([routeA.code,routeB.code]);flash(document.getElementById('rbSave'));}
 };
+function closeRouteBar(){
+  routeA=routeB=null;
+  if(routeLine){map.removeLayer(routeLine);routeLine=null;}
+  document.getElementById('rbKm').textContent='—';
+  document.getElementById('rbStraight').textContent='';
+  document.getElementById('routebar').classList.add('hidden');
+  if(routeMode)toggleRouteMode();   // ปิดโหมดวัดระยะ + รีเซ็ตปุ่มบนแผนที่
+  renderList();
+}
+document.getElementById('rbClose').onclick=closeRouteBar;
 
 let routeCtl;
 function addRouteCtl(){
