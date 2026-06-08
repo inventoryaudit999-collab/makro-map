@@ -416,13 +416,11 @@ const FIREBASE_CONFIG = {
 const DB_BRANCHES="makro_branches";     // ข้อมูลสาขา
 const DB_RECORDS="makro_distance_logs";  // บันทึกระยะทาง
 
-/* LOGIN (เปลี่ยนได้ที่นี่) */
-const AUTH_USER="admin";
-const AUTH_PASS="admin@1234";
-
-  /* LOGIN (เปลี่ยนได้ที่นี่) */
-const AUTH_USER="admin";
-const AUTH_PASS="adminho";
+/* LOGIN (เพิ่ม/แก้บัญชีได้ที่นี่ — ทุกบัญชีสิทธิ์เท่ากัน) */
+const ACCOUNTS=[
+  {user:"admin", pass:"admin@1234"},
+  {user:"admin", pass:"adminho"}
+];
 
 /* ============================================================
    I18N
@@ -680,7 +678,8 @@ function showApp(){document.getElementById('loginOverlay').classList.add('hide')
 function doLogin(){
   const u=document.getElementById('loginUser').value.trim();
   const p=document.getElementById('loginPass').value;
-  if(u===AUTH_USER&&p===AUTH_PASS){
+  const ok=ACCOUNTS.some(a=>a.user===u&&a.pass===p);
+  if(ok){
     document.getElementById('loginErr').textContent='';
     document.getElementById('userName').textContent=u;
     document.getElementById('userAv').textContent=u.charAt(0).toUpperCase();
